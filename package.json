@@ -1,0 +1,24 @@
+{
+  "name": "98agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "dev": "npm run dev --workspace @98agent/web",
+    "test": "vitest run",
+    "typecheck": "tsc --build",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.10",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4",
+    "zod": "^4.0.5"
+  }
+}
+

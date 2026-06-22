@@ -1,0 +1,12 @@
+{
+  "name": "@98agent/prior-engines",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "lint": "tsc --noEmit"
+  }
+}
+

@@ -1,0 +1,16 @@
+node_modules/
+coverage/
+*.log
+data/
+apps/web/data/
+.cache/
+.artifacts/
+.codex/
+.playwright-mcp/
+98agent-*.png
+**/dist/
+**/*.tsbuildinfo
+packages/**/tests/**/*.js
+packages/**/tests/**/*.js.map
+packages/**/tests/**/*.d.ts
+**/__pycache__/

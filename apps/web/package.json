@@ -1,0 +1,25 @@
+{
+  "name": "@98agent/web",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/server.js",
+  "types": "./dist/server.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "node --import tsx ./src/server.ts",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@98agent/agent-runtime": "0.1.0",
+    "@98agent/ingestion": "0.1.0",
+    "@98agent/local-model-finetune": "0.1.0",
+    "@98agent/memory-core": "0.1.0",
+    "@98agent/model-registry": "0.1.0",
+    "@98agent/prior-engines": "0.1.0",
+    "@98agent/training-data": "0.1.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.3"
+  }
+}
+

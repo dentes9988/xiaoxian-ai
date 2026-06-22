@@ -1,0 +1,14 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/memory-core" },
+    { "path": "./packages/agent-runtime" },
+    { "path": "./packages/ingestion" },
+    { "path": "./packages/prior-engines" },
+    { "path": "./packages/training-data" },
+    { "path": "./packages/model-registry" },
+    { "path": "./packages/local-model-finetune" },
+    { "path": "./apps/web" }
+  ]
+}
+

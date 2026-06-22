@@ -1,0 +1,22 @@
+xiaoxian.qyuanai.com {
+    encode gzip zstd
+
+    root * /srv/site/xiaoxian
+    try_files {path} /index.html
+    file_server
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    log {
+        output file /var/log/caddy/xiaoxian.qyuanai.com.log {
+            roll_size 10MiB
+            roll_keep 10
+        }
+        format json
+    }
+}

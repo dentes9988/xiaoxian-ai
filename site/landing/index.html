@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>xiaoxian AI</title>
+    <meta
+      name="description"
+      content="xiaoxian AI 是一个本地优先的个人助理项目，帮助每个人建立对自己欲望、情绪、决策模式的更清晰理解。"
+    />
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f4f8ff;
+        --surface: rgba(255, 255, 255, 0.84);
+        --surface-strong: #ffffff;
+        --line: #d5e1f3;
+        --text: #14233b;
+        --muted: #62718e;
+        --accent: #2d6df6;
+        --accent-strong: #164fd4;
+        --shadow: 0 24px 50px rgba(28, 54, 102, 0.1);
+        --radius: 24px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top left, rgba(45, 109, 246, 0.16), transparent 22%),
+          linear-gradient(180deg, #f9fbff 0%, var(--bg) 100%);
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .page {
+        width: min(1280px, calc(100vw - 40px));
+        margin: 20px auto 36px;
+      }
+
+      .nav,
+      .hero,
+      .grid,
+      .cta {
+        background: var(--surface);
+        border: 1px solid rgba(213, 225, 243, 0.92);
+        backdrop-filter: blur(18px);
+        box-shadow: var(--shadow);
+        border-radius: var(--radius);
+      }
+
+      .nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        padding: 18px 22px;
+        margin-bottom: 18px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 800;
+        font-size: 1.1rem;
+      }
+
+      .brand-dot {
+        width: 14px;
+        height: 14px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, #7ca8ff 0%, var(--accent) 100%);
+        box-shadow: 0 0 0 6px rgba(45, 109, 246, 0.12);
+      }
+
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .pill,
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        padding: 11px 16px;
+        font-weight: 700;
+      }
+
+      .pill {
+        background: rgba(45, 109, 246, 0.08);
+        color: var(--accent-strong);
+      }
+
+      .button {
+        background: var(--accent);
+        color: #fff;
+      }
+
+      .button.secondary {
+        background: #edf4ff;
+        color: var(--accent-strong);
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+        gap: 28px;
+        padding: 34px;
+        margin-bottom: 18px;
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: clamp(2.3rem, 4vw, 4.1rem);
+        line-height: 1.02;
+        letter-spacing: 0;
+      }
+
+      .hero p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 1.04rem;
+        line-height: 1.72;
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 22px;
+      }
+
+      .preview {
+        min-height: 380px;
+        border-radius: 22px;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(239, 245, 255, 0.92)),
+          #fff;
+        border: 1px solid rgba(196, 212, 235, 0.95);
+        padding: 18px;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: 16px;
+      }
+
+      .preview-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        color: var(--muted);
+        font-size: 0.94rem;
+      }
+
+      .preview-chat {
+        display: grid;
+        gap: 12px;
+      }
+
+      .bubble {
+        max-width: 88%;
+        padding: 14px 16px;
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        line-height: 1.58;
+        background: rgba(255, 255, 255, 0.94);
+      }
+
+      .bubble.user {
+        justify-self: end;
+        background: #edf4ff;
+      }
+
+      .preview-input {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+      }
+
+      .preview-input div {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: #fff;
+        min-height: 54px;
+      }
+
+      .grid {
+        padding: 26px;
+        margin-bottom: 18px;
+      }
+
+      .section-title {
+        margin: 0 0 16px;
+        font-size: 1.3rem;
+      }
+
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .card {
+        border: 1px solid rgba(213, 225, 243, 0.92);
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.9);
+        padding: 18px;
+      }
+
+      .card h3 {
+        margin: 0 0 8px;
+        font-size: 1rem;
+      }
+
+      .card p,
+      .card li {
+        color: var(--muted);
+        line-height: 1.68;
+      }
+
+      .card ul {
+        margin: 0;
+        padding-left: 18px;
+      }
+
+      .cta {
+        padding: 26px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+      }
+
+      .cta-copy h2 {
+        margin: 0 0 8px;
+        font-size: 1.45rem;
+      }
+
+      .cta-copy p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.68;
+      }
+
+      .footer {
+        padding: 16px 4px 0;
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+
+      @media (max-width: 980px) {
+        .page {
+          width: min(100vw - 20px, 1280px);
+          margin: 10px auto 22px;
+        }
+
+        .hero,
+        .cards,
+        .cta {
+          grid-template-columns: 1fr;
+        }
+
+        .nav,
+        .cta {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <section class="nav">
+        <div class="brand">
+          <span class="brand-dot"></span>
+          <span>xiaoxian AI</span>
+        </div>
+        <div class="nav-links">
+          <a class="pill" href="https://github.com/dentes9988/xiaoxian-ai" target="_blank" rel="noreferrer">GitHub</a>
+          <a class="button secondary" href="#about">项目说明</a>
+        </div>
+      </section>
+
+      <section class="hero" id="about">
+        <div>
+          <h1>让每个人都拥有一个懂自己的助理。</h1>
+          <p>
+            xiaoxian AI 是一个本地优先的个人助理项目。它不是把你塞进一个固定人格标签里，而是帮助你逐步看清自己的欲望、情绪、决策模式和长期变化，并把这种理解用在真实生活里。
+          </p>
+          <div class="hero-actions">
+            <a class="button" href="https://github.com/dentes9988/xiaoxian-ai" target="_blank" rel="noreferrer">查看开源仓库</a>
+            <span class="pill">mac 版本优先</span>
+            <span class="pill">本地训练优先</span>
+          </div>
+        </div>
+
+        <div class="preview">
+          <div class="preview-head">
+            <span>当前方向：欲望、情绪、决策支持</span>
+            <span>本地优先</span>
+          </div>
+          <div class="preview-chat">
+            <div class="bubble">今天真正压着你的，是收入焦虑，还是不想再被错误的事情消耗？</div>
+            <div class="bubble user">我想先稳住现金流，但不想做会让我越来越厌烦的事。</div>
+            <div class="bubble">那我们先找既能带来结果、又保留自主感的路径，再把长期方向慢慢收拢。</div>
+          </div>
+          <div class="preview-input">
+            <div></div>
+            <a class="button" href="https://github.com/dentes9988/xiaoxian-ai" target="_blank" rel="noreferrer">开始使用</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <h2 class="section-title">它在做什么</h2>
+        <div class="cards">
+          <article class="card">
+            <h3>理解你，而不是替你定义你</h3>
+            <p>系统会把画像当成当前假设，而不是永久结论。任何影响后续决策的重要变化，都应该经过用户确认。</p>
+          </article>
+          <article class="card">
+            <h3>用欲望和情绪看见自己</h3>
+            <p>通过七个欲望方向和陪伴状态，把抽象的情绪、压力和动力变化翻译成更可观察、更可修正的线索。</p>
+          </article>
+          <article class="card">
+            <h3>把理解用于真实决策</h3>
+            <p>它不只聊天，还要帮助你在赚钱、成长、关系表达等具体处境里做出更贴近自己的选择。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="grid">
+        <h2 class="section-title">项目原则</h2>
+        <div class="cards">
+          <article class="card">
+            <h3>用户主权</h3>
+            <ul>
+              <li>用户拥有自己的画像与修订权</li>
+              <li>重要自我建模变更必须确认</li>
+              <li>先验系统只作为低权重冷启动假设</li>
+            </ul>
+          </article>
+          <article class="card">
+            <h3>隐私优先</h3>
+            <ul>
+              <li>记忆、训练数据、适配器默认本地保存</li>
+              <li>云端模型只负责对话与结构化抽取</li>
+              <li>持续微调在用户本地按作息时段完成</li>
+            </ul>
+          </article>
+          <article class="card">
+            <h3>开源可扩展</h3>
+            <ul>
+              <li>每个人都能部署自己的助理</li>
+              <li>前期以单用户 mac 版本为主</li>
+              <li>未来可以扩展到更多任务执行能力</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="cta">
+        <div class="cta-copy">
+          <h2>现在先做一个真正可用、可本地训练、可公开开源的版本。</h2>
+          <p>xiaoxian AI 的第一步，不是成为平台，而是让普通人真的拥有一个更懂自己的助理。</p>
+        </div>
+        <a class="button" href="https://github.com/dentes9988/xiaoxian-ai" target="_blank" rel="noreferrer">前往 GitHub</a>
+      </section>
+
+      <div class="footer">xiaoxian AI · local-first personal assistant · mac-first open-source release</div>
+    </div>
+  </body>
+</html>

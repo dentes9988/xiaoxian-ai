@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "references": [
+    { "path": "../../packages/agent-runtime" },
+    { "path": "../../packages/ingestion" },
+    { "path": "../../packages/local-model-finetune" },
+    { "path": "../../packages/memory-core" },
+    { "path": "../../packages/model-registry" },
+    { "path": "../../packages/prior-engines" },
+    { "path": "../../packages/training-data" }
+  ],
+  "include": ["src/**/*.ts"]
+}
+

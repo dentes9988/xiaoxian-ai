@@ -1,0 +1,1002 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>xiaoxian AI</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%232d6df6'/%3E%3Ccircle cx='16' cy='16' r='7' fill='white' fill-opacity='0.88'/%3E%3C/svg%3E" />
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #edf3ff;
+        --panel: rgba(255, 255, 255, 0.88);
+        --panel-strong: #ffffff;
+        --line: #d7e1ee;
+        --line-strong: #bfd0e6;
+        --text: #17243a;
+        --muted: #6b7b94;
+        --blue: #2d6df6;
+        --blue-strong: #0f4dd8;
+        --blue-soft: rgba(45, 109, 246, 0.12);
+        --green: #18a36d;
+        --red: #d23f57;
+        --shadow: 0 18px 44px rgba(21, 39, 76, 0.1);
+        --radius: 22px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        min-height: 100%;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(45, 109, 246, 0.18), transparent 24%),
+          linear-gradient(180deg, #f5f8ff 0%, var(--bg) 100%);
+        color: var(--text);
+      }
+
+      body {
+        min-height: 100vh;
+        overflow: hidden;
+      }
+
+      button,
+      input,
+      textarea,
+      select {
+        font: inherit;
+      }
+
+      button {
+        border: 0;
+        border-radius: 14px;
+        background: var(--blue);
+        color: #fff;
+        padding: 0.78rem 1rem;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform 0.16s ease, background 0.16s ease;
+      }
+
+      button:hover {
+        background: var(--blue-strong);
+        transform: translateY(-1px);
+      }
+
+      button.secondary {
+        background: #edf3ff;
+        color: var(--blue-strong);
+      }
+
+      button.secondary:hover {
+        background: #dfeaff;
+      }
+
+      input,
+      textarea,
+      select {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.96);
+        color: var(--text);
+        padding: 0.82rem 0.92rem;
+      }
+
+      textarea {
+        resize: none;
+      }
+
+      .app-shell {
+        display: grid;
+        grid-template-columns: 274px minmax(0, 1fr);
+        align-items: stretch;
+        gap: 18px;
+        width: calc(100vw - 28px);
+        height: calc(100dvh - 28px);
+        max-height: calc(100dvh - 28px);
+        min-height: calc(100vh - 28px);
+        margin: 14px auto;
+        overflow: hidden;
+      }
+
+      .sidebar,
+      .chat-frame {
+        min-width: 0;
+        min-height: 0;
+      }
+
+      .sidebar {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        height: 100%;
+        max-height: 100%;
+        overflow: auto;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
+      }
+
+      .panel,
+      .chat-panel,
+      .drawer-panel {
+        background: var(--panel);
+        backdrop-filter: blur(16px);
+        border: 1px solid rgba(191, 208, 230, 0.72);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+      }
+
+      .panel {
+        padding: 16px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 0.98rem;
+        font-weight: 700;
+        color: var(--blue-strong);
+      }
+
+      .brand::before {
+        content: "";
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        background: var(--blue);
+        box-shadow: 0 0 0 7px rgba(45, 109, 246, 0.12);
+      }
+
+      .title-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .side-title {
+        margin: 10px 0 4px;
+        font-size: 0.96rem;
+        font-weight: 700;
+      }
+
+      .muted {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      .mini-button {
+        width: 44px;
+        min-width: 44px;
+        height: 44px;
+        padding: 0;
+        border-radius: 14px;
+        background: rgba(45, 109, 246, 0.08);
+        color: var(--blue-strong);
+        font-size: 1.05rem;
+      }
+
+      .mini-button:hover {
+        background: rgba(45, 109, 246, 0.15);
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        padding: 0.32rem 0.68rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        background: rgba(20, 32, 51, 0.06);
+        color: var(--text);
+      }
+
+      .desire-card-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 8px;
+      }
+
+      .desire-chart {
+        position: relative;
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 4px;
+        padding-top: 16px;
+        margin-top: 10px;
+      }
+
+      .desire-chart::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 50%;
+        height: 1px;
+        background: rgba(100, 116, 139, 0.36);
+      }
+
+      .axis {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        min-height: 218px;
+      }
+
+      .axis-top,
+      .axis-bottom {
+        text-align: center;
+        line-height: 1.2;
+      }
+
+      .axis-name {
+        font-size: 0.78rem;
+        font-weight: 800;
+      }
+
+      .axis-shadow {
+        font-size: 0.78rem;
+        color: #51617d;
+      }
+
+      .axis-score {
+        font-size: 0.72rem;
+        color: var(--muted);
+      }
+
+      .axis-track {
+        position: relative;
+        width: 100%;
+        height: 146px;
+        display: flex;
+        justify-content: center;
+      }
+
+      .axis-line {
+        width: 3px;
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(180deg, rgba(45, 109, 246, 0.18), rgba(45, 109, 246, 0.62), rgba(45, 109, 246, 0.18));
+      }
+
+      .axis-marker {
+        position: absolute;
+        top: calc(var(--score-pos, 50%) - 8px);
+        left: 50%;
+        width: 16px;
+        height: 16px;
+        transform: translateX(-50%);
+        border-radius: 999px;
+        border: 3px solid #fff;
+        background: var(--axis-color, var(--blue));
+        box-shadow: 0 6px 18px rgba(45, 109, 246, 0.22);
+      }
+
+      .info-wrap {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .info-button {
+        width: 16px;
+        height: 16px;
+        padding: 0;
+        border-radius: 999px;
+        border: 1px solid var(--line-strong);
+        background: #fff;
+        color: var(--blue-strong);
+        font-size: 0.68rem;
+        line-height: 1;
+      }
+
+      .info-button:hover,
+      .info-wrap:focus-within .info-button {
+        background: #eff5ff;
+        transform: none;
+      }
+
+      .tooltip {
+        position: absolute;
+        top: calc(100% + 8px);
+        left: 50%;
+        z-index: 10;
+        width: 210px;
+        padding: 12px;
+        border-radius: 14px;
+        background: rgba(20, 32, 51, 0.96);
+        color: #f8fbff;
+        text-align: left;
+        box-shadow: 0 18px 34px rgba(15, 23, 42, 0.24);
+        opacity: 0;
+        pointer-events: none;
+        transform: translate(-50%, 8px);
+        transition: opacity 0.16s ease, transform 0.16s ease;
+      }
+
+      .info-wrap:hover .tooltip,
+      .info-wrap:focus-within .tooltip {
+        opacity: 1;
+        transform: translate(-50%, 0);
+      }
+
+      .tooltip strong {
+        display: block;
+        margin-bottom: 6px;
+      }
+
+      .tooltip p {
+        margin: 0 0 8px;
+        font-size: 0.84rem;
+        line-height: 1.42;
+      }
+
+      .mascot-box {
+        min-height: 276px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .mascot-stage {
+        flex: 1;
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        padding-top: 14px;
+      }
+
+      .mascot {
+        position: relative;
+        width: 164px;
+        height: 164px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        animation: mascotFloat 4.8s ease-in-out infinite;
+      }
+
+      @keyframes mascotFloat {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-5px); }
+      }
+
+      .halo,
+      .body-glow {
+        position: absolute;
+        border-radius: 999px;
+      }
+
+      .halo {
+        inset: 10px;
+        background: radial-gradient(circle, rgba(45, 109, 246, 0.22), transparent 70%);
+      }
+
+      .head {
+        position: absolute;
+        top: 24px;
+        width: 92px;
+        height: 92px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, #ffffff, #eef4ff);
+        border: 1px solid rgba(191, 208, 230, 0.94);
+      }
+
+      .body-shape {
+        position: absolute;
+        bottom: 10px;
+        width: 110px;
+        height: 88px;
+        border-radius: 34px 34px 42px 42px;
+        background: linear-gradient(180deg, #eaf1ff, #dde8ff);
+        border: 1px solid rgba(191, 208, 230, 0.94);
+        overflow: hidden;
+      }
+
+      .body-glow {
+        inset: 12px 16px;
+        background: radial-gradient(circle at 50% 30%, rgba(45, 109, 246, 0.34), rgba(45, 109, 246, 0.08));
+      }
+
+      .eye,
+      .brow,
+      .mouth,
+      .orb {
+        position: absolute;
+      }
+
+      .eye {
+        top: 40px;
+        width: 11px;
+        height: 11px;
+        border-radius: 999px;
+        background: #163a6f;
+      }
+
+      .eye.left { left: 28px; }
+      .eye.right { right: 28px; }
+
+      .brow {
+        top: 29px;
+        width: 20px;
+        height: 3px;
+        border-radius: 999px;
+        background: #4d6d97;
+      }
+
+      .brow.left { left: 22px; transform: rotate(4deg); }
+      .brow.right { right: 22px; transform: rotate(-4deg); }
+
+      .mouth {
+        left: 50%;
+        bottom: 20px;
+        width: 28px;
+        height: 16px;
+        transform: translateX(-50%);
+        border-bottom: 4px solid #163a6f;
+        border-radius: 0 0 22px 22px;
+      }
+
+      .orb {
+        width: 16px;
+        height: 16px;
+        border-radius: 999px;
+        background: rgba(45, 109, 246, 0.16);
+      }
+
+      .orb.orb-a { top: 16px; right: 12px; }
+      .orb.orb-b { bottom: 18px; left: 8px; }
+
+      .mood-listening .eye,
+      .mood-thinking .eye {
+        transform: scaleY(0.84);
+      }
+
+      .mood-thinking .mouth {
+        width: 22px;
+        height: 8px;
+        border-bottom-width: 3px;
+        border-radius: 999px;
+      }
+
+      .mood-delighted .mouth {
+        width: 32px;
+        height: 20px;
+      }
+
+      .mood-concerned .brow.left { transform: rotate(12deg); }
+      .mood-concerned .brow.right { transform: rotate(-12deg); }
+      .mood-concerned .mouth {
+        width: 22px;
+        height: 10px;
+        border-bottom: 0;
+        border-top: 4px solid #163a6f;
+        border-radius: 20px 20px 0 0;
+      }
+
+      .mood-dreaming .eye {
+        top: 44px;
+        width: 14px;
+        height: 3px;
+      }
+
+      .mood-dreaming .mouth {
+        width: 22px;
+        height: 6px;
+        border-radius: 999px;
+      }
+
+      .chat-frame {
+        display: flex;
+        min-height: 0;
+        height: 100%;
+        max-height: 100%;
+        overflow: hidden;
+      }
+
+      .chat-panel {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        width: 100%;
+        height: 100%;
+        max-height: 100%;
+        min-height: 0;
+        padding: 14px;
+      }
+
+      .chat-topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 2px 4px 12px;
+      }
+
+      .status-text {
+        font-size: 0.94rem;
+        color: var(--muted);
+      }
+
+      .top-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .chat-surface {
+        display: grid;
+        grid-template-rows: minmax(0, 1fr) auto;
+        min-height: 0;
+        height: 100%;
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.52);
+        border: 1px solid rgba(191, 208, 230, 0.54);
+        overflow: hidden;
+      }
+
+      .chat-log {
+        min-height: 0;
+        overflow: auto;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable both-edges;
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        align-content: start;
+        gap: 14px;
+      }
+
+      .history-indicator {
+        align-self: center;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.86);
+        border: 1px solid rgba(191, 208, 230, 0.72);
+        color: var(--muted);
+        font-size: 0.78rem;
+      }
+
+      .history-indicator.error {
+        color: var(--red);
+        border-color: rgba(210, 63, 87, 0.2);
+        background: rgba(255, 245, 247, 0.96);
+      }
+
+      .chat-message-row {
+        display: flex;
+        align-items: flex-end;
+        gap: 8px;
+        max-width: min(900px, 92%);
+      }
+
+      .chat-message-row.user {
+        align-self: flex-end;
+      }
+
+      .chat-message-row.assistant {
+        align-self: flex-start;
+      }
+
+      .chat-message {
+        max-width: 100%;
+        border-radius: 18px;
+        padding: 14px 16px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.9);
+      }
+
+      .chat-message.user {
+        background: #edf4ff;
+        border-color: #d7e6ff;
+      }
+
+      .chat-message.status-failed {
+        border-color: rgba(210, 63, 87, 0.32);
+        background: rgba(255, 245, 247, 0.98);
+      }
+
+      .chat-message.status-retrying,
+      .chat-message.status-sending {
+        opacity: 0.8;
+      }
+
+      .chat-role {
+        margin-bottom: 6px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: var(--blue-strong);
+      }
+
+      .chat-content {
+        white-space: pre-wrap;
+        line-height: 1.62;
+      }
+
+      .chat-meta {
+        margin-top: 10px;
+        font-size: 0.76rem;
+        color: var(--muted);
+      }
+
+      .chat-meta.error {
+        color: var(--red);
+      }
+
+      .chat-actions {
+        display: flex;
+        align-items: center;
+        padding-bottom: 6px;
+      }
+
+      .retry-button {
+        width: 36px;
+        min-width: 36px;
+        height: 36px;
+        padding: 0;
+        border: 1px solid rgba(45, 109, 246, 0.18);
+        border-radius: 12px;
+        background: rgba(45, 109, 246, 0.1);
+        color: var(--blue-strong);
+        font-size: 1rem;
+      }
+
+      .retry-button:hover {
+        background: rgba(45, 109, 246, 0.18);
+        transform: translateY(-1px);
+      }
+
+      .composer {
+        flex: 0 0 auto;
+        padding: 16px;
+        border-top: 1px solid rgba(191, 208, 230, 0.68);
+        background: rgba(255, 255, 255, 0.88);
+        box-shadow: 0 -10px 24px rgba(18, 37, 72, 0.06);
+      }
+
+      .composer-box {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: end;
+      }
+
+      .composer textarea {
+        min-height: 62px;
+        max-height: 180px;
+      }
+
+      .empty {
+        color: var(--muted);
+        border: 1px dashed var(--line-strong);
+        border-radius: 16px;
+        padding: 16px;
+        background: rgba(255, 255, 255, 0.6);
+      }
+
+      .drawer-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.24);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.18s ease;
+      }
+
+      .drawer-backdrop.open {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .drawer {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: min(460px, calc(100vw - 18px));
+        padding: 14px;
+        transform: translateX(100%);
+        transition: transform 0.22s ease;
+      }
+
+      .drawer.open {
+        transform: translateX(0);
+      }
+
+      .drawer-panel {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        padding: 16px;
+      }
+
+      .drawer-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 10px;
+      }
+
+      .drawer-body {
+        flex: 1;
+        overflow: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding-right: 2px;
+      }
+
+      .settings-section {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 14px;
+        background: rgba(255, 255, 255, 0.72);
+      }
+
+      .settings-section h3 {
+        margin: 0 0 10px;
+        font-size: 1rem;
+      }
+
+      .field-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .field-grid.single {
+        grid-template-columns: 1fr;
+      }
+
+      label {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .button-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      details {
+        margin-top: 10px;
+      }
+
+      details summary {
+        cursor: pointer;
+        color: var(--blue-strong);
+        font-weight: 600;
+      }
+
+      pre {
+        margin: 10px 0 0;
+        padding: 14px;
+        border-radius: 14px;
+        background: #0f172a;
+        color: #dbe7ff;
+        font-size: 0.82rem;
+        overflow: auto;
+      }
+
+      @media (max-width: 980px) {
+        body {
+          overflow: auto;
+        }
+
+        .app-shell {
+          grid-template-columns: 1fr;
+          height: auto;
+          max-height: none;
+          overflow: visible;
+        }
+
+        .chat-frame {
+          order: -1;
+        }
+
+        .chat-panel {
+          min-height: 72vh;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .app-shell {
+          width: calc(100vw - 16px);
+          height: auto;
+          max-height: none;
+          margin: 8px auto;
+          gap: 10px;
+        }
+
+        .chat-panel {
+          min-height: calc(100vh - 16px);
+          padding: 10px;
+        }
+
+        .sidebar,
+        .chat-frame {
+          height: auto;
+          max-height: none;
+          overflow: visible;
+        }
+
+        .field-grid,
+        .composer-box {
+          grid-template-columns: 1fr;
+        }
+
+        .chat-message-row {
+          max-width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="sidebar">
+        <section class="panel">
+          <div class="title-row">
+            <div>
+              <div class="brand">xiaoxian AI</div>
+            </div>
+            <button id="refreshModel" class="mini-button" type="button" aria-label="刷新">↻</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="desire-card-head">
+            <div class="side-title">七个欲望方向</div>
+            <span class="pill" id="desireEvidence">等待同步</span>
+          </div>
+          <div class="desire-chart" id="desireChart"></div>
+        </section>
+
+        <section class="panel mascot-box">
+          <div>
+            <div class="side-title">陪伴状态</div>
+            <p class="muted" id="moodReason">等待同步</p>
+          </div>
+          <div class="mascot-stage">
+            <div id="mascot" class="mascot mood-idle">
+              <div class="halo"></div>
+              <div class="orb orb-a"></div>
+              <div class="orb orb-b"></div>
+              <div class="head">
+                <div class="brow left"></div>
+                <div class="brow right"></div>
+                <div class="eye left"></div>
+                <div class="eye right"></div>
+                <div class="mouth"></div>
+              </div>
+              <div class="body-shape">
+                <div class="body-glow"></div>
+              </div>
+            </div>
+          </div>
+          <span class="pill" id="moodBadge">空闲</span>
+        </section>
+      </aside>
+
+      <section class="chat-frame">
+        <div class="chat-panel">
+          <div class="chat-topbar">
+            <div class="status-text" id="workspaceStatus">正在同步...</div>
+            <div class="top-actions">
+              <button id="openSettings" class="secondary" type="button">设置</button>
+            </div>
+          </div>
+
+          <div class="chat-surface">
+            <div class="chat-log" id="chatLog"></div>
+            <div class="composer">
+              <div class="composer-box">
+                <textarea id="message" placeholder="和我说话。"></textarea>
+                <button id="sendMessage" type="button">发送</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="settingsBackdrop" class="drawer-backdrop"></div>
+    <aside id="settingsDrawer" class="drawer" aria-hidden="true">
+      <div class="drawer-panel">
+        <div class="drawer-head">
+          <h2 style="margin:0;">设置</h2>
+          <button id="closeSettings" class="mini-button" type="button" aria-label="关闭">×</button>
+        </div>
+        <div class="drawer-body">
+          <section class="settings-section">
+            <h3>对话模型</h3>
+            <div class="field-grid">
+              <label>Provider
+                <select id="runtimeProvider">
+                  <option value="qyuanai">qyuanai</option>
+                  <option value="ollama">ollama</option>
+                </select>
+              </label>
+              <label>Model
+                <input id="runtimeModel" placeholder="deepseek-v4-flash" />
+              </label>
+            </div>
+            <div class="field-grid single">
+              <label>Base URL
+                <input id="runtimeBaseUrl" placeholder="https://token.qyuanai.com" />
+              </label>
+              <label>API Key
+                <input id="runtimeApiKey" placeholder="sk-..." />
+              </label>
+            </div>
+            <div class="button-row">
+              <button id="saveRuntimeConfig" type="button">保存模型配置</button>
+            </div>
+          </section>
+
+          <section class="settings-section">
+            <h3>微调</h3>
+            <div class="field-grid">
+              <label>训练模型
+                <input id="trainingModel" placeholder="mlx-community/VibeThinker-3B-4bit" />
+              </label>
+              <label>单次时长（秒）
+                <input id="maxDurationSeconds" type="number" min="60" max="900" />
+              </label>
+              <label>开始时段
+                <input id="windowStartHour" type="number" min="0" max="23" />
+              </label>
+              <label>结束时段
+                <input id="windowEndHour" type="number" min="0" max="23" />
+              </label>
+            </div>
+            <div class="button-row">
+              <button id="saveTrainingConfig" type="button">保存微调配置</button>
+              <button id="prepareTrainingModel" class="secondary" type="button">准备训练模型</button>
+              <button id="runTraining" class="secondary" type="button">立即训练</button>
+              <button id="runScheduledTraining" class="secondary" type="button">按时段训练</button>
+            </div>
+            <div class="field-grid single" style="margin-top:12px;">
+              <div class="pill" id="settingsTrainingModelStatus">等待同步</div>
+              <p class="muted" id="settingsTrainingModelHint" style="margin:0;"></p>
+            </div>
+          </section>
+
+          <section class="settings-section">
+            <h3>记忆</h3>
+            <div class="field-grid single">
+              <div class="pill" id="settingsMemoryStats">等待同步</div>
+              <div class="pill" id="settingsProfileStats">等待同步</div>
+            </div>
+            <div class="button-row">
+              <button id="generatePriors" class="secondary" type="button">更新先验</button>
+            </div>
+            <details>
+              <summary>查看原始状态</summary>
+              <pre id="modelState"></pre>
+            </details>
+          </section>
+        </div>
+      </div>
+    </aside>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+  </html>
