@@ -151,6 +151,16 @@ npm run dev
 http://127.0.0.1:4173
 ```
 
+更完整、可逐步复制的 mac 安装说明见：
+
+- [macOS 安装说明](docs/setup/macos-local-install.md)
+
+如果你想启用本地小模型训练，仓库默认推荐：
+
+- `mlx-community/VibeThinker-3B-4bit`
+
+原因很简单：它已经是当前项目默认训练基座模型，适合 Apple Silicon + MLX 路线，体积和本地可用性也更平衡。
+
 ## 验证
 
 ```bash

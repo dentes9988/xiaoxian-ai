@@ -8,6 +8,9 @@
     "packages/*"
   ],
   "scripts": {
+    "setup": "npm install",
+    "setup:training:mac": "bash ./scripts/setup-local-training-macos.sh",
+    "check:training:mac": "bash ./scripts/check-local-training-macos.sh",
     "build": "npm run build --workspaces --if-present",
     "dev": "npm run dev --workspace @98agent/web",
     "test": "vitest run",
@@ -21,4 +24,3 @@
     "zod": "^4.0.5"
   }
 }
-

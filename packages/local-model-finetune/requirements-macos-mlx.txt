@@ -1,0 +1,8 @@
+# Verified on 2026-06-22 on Apple Silicon macOS with Python 3.11.
+# These are the Python dependencies required by:
+# - packages/local-model-finetune/scripts/run_mlx_lora.py
+# - the local MLX LoRA preparation and fine-tuning flow
+
+mlx-lm==0.31.3
+huggingface_hub==1.20.1
+httpx==0.28.1
