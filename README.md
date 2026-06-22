@@ -1,80 +1,173 @@
 # xiaoxian AI
 
-`xiaoxian AI` is a local-first personal assistant that helps each person build a clearer understanding of their own desires, emotions, patterns, and decision style.
+让每个人都拥有一个懂自己的助理。
 
-The product idea is simple:
+`xiaoxian AI` 是一个本地优先的个人助理项目。它希望帮助每个人逐步建立对自己欲望、情绪、决策模式与长期变化的清晰理解，并把这种理解真正用在现实生活里。
 
-- everyone should have an assistant that understands them better over time
-- that understanding should stay inspectable, correctable, and user-owned
-- important self-model changes should require confirmation
-- local training and memory management should protect personal privacy
+这个仓库当前聚焦于：
 
-This repository currently focuses on the first macOS-friendly local web version.
+- mac 优先的本地版本
+- 本地记忆与本地持续训练
+- 云端大模型负责对话、指令返回和工具处理
+- 本地小模型负责长期整理、夜间微调和隐私保护
 
-## What It Does
+## 项目截图
 
-- live chat with a stronger online model for conversation
-- candidate memory extraction from each conversation turn
-- confirmation gates for high-impact profile changes
-- a seven-direction desire panel that shows current hypotheses, not fixed labels
-- local cognition logs and nightly local fine-tuning workflow
-- low-authority prior systems used only as cold-start personality hypotheses
+![xiaoxian AI 项目页](docs/assets/xiaoxian-project-page.png)
+![xiaoxian AI 预览卡片](docs/assets/xiaoxian-preview-card.png)
 
-## Privacy Rules
+## 我们为什么做这个项目
 
-This repository is intended for public open-source use, but personal data is not part of the public codebase.
+今天的大模型已经很强，但“真正理解某一个具体的人”依然是个没有被很好解决的问题。
 
-Do not commit:
+平台型产品很难做到真正个性化，因为：
+
+- 每个人不会愿意把自己完整交给平台
+- 人的变化需要时间标记、确认机制和可回溯修订
+- 长期个体数据越多，越需要私密、持续、低成本的整理与训练方式
+
+`xiaoxian AI` 想尝试一种更合理的人与 AI 共生方式：
+
+1. 强模型负责当前回合的理解与执行
+2. 小模型负责本地长期自我建模与微调
+3. 用户始终拥有自己的画像主权、记忆修订权和隐私边界
+
+## 核心理念
+
+### 1. 用户主权高于平台定义
+
+系统的任务不是替用户定义“你是谁”，而是帮助用户更清楚地看见自己。
+
+- 画像应该可检查
+- 画像应该可修正
+- 画像应该带时间和证据
+- 重要变化必须经过用户确认
+
+### 2. 先验只能是低权重假设
+
+MBTI、八字、紫微、星盘、易经等内容，在这里不作为命运判断工具，而只作为冷启动时帮助理解性格倾向的低权重假设。
+
+它们可以帮助系统更早问出更好的问题，但不能替代长期真实对话和现实行为证据。
+
+### 3. 欲望与情绪不是噪音，而是理解用户的入口
+
+项目当前会把“七个欲望方向”作为一种可视化镜头，帮助用户观察自己当前更偏向：
+
+- 正向发展
+- 接近平衡
+- 阴影拉扯
+
+它不是诊断，也不是打标签，而是帮助用户更快识别：
+
+- 我现在真正被什么驱动
+- 我在什么地方失衡了
+- 我该如何做出更贴近自己的选择
+
+## 为什么采用“小模型本地自训练 + 大模型在线执行”
+
+这是 `xiaoxian AI` 最重要的技术主张之一。
+
+### 大模型适合做什么
+
+大模型更适合：
+
+- 当前回合的自然对话
+- 更强的语言理解与总结
+- 指令返回
+- 结构化记忆抽取
+- 工具调用与任务处理
+
+### 小模型适合做什么
+
+小模型更适合：
+
+- 在本地长期持有用户自己的训练素材
+- 夜间或休息时段持续微调
+- 对每天完整经历进行整理与归档
+- 在不泄露隐私的前提下慢慢形成“更像你自己的模型”
+
+### 为什么这种组合更合理
+
+因为它兼顾了三件事：
+
+1. **能力**  
+   在线大模型保证即时响应与强推理能力。
+
+2. **隐私**  
+   用户自己的长期记忆、画像修订、训练样本和适配器尽量留在本地。
+
+3. **持续个性化**  
+   小模型不需要在每次对话里都变得最聪明，但它可以越来越像“你自己的那一份理解器”。
+
+这也是我们认为更适合未来的一种 AI 形态：
+
+不是所有东西都被平台收走，也不是所有事情都靠一个超级云端模型完成，而是让每个人都逐步拥有属于自己的 AI 资产与 AI 伙伴。
+
+## 当前版本在做什么
+
+- 实时聊天与结构化候选记忆抽取
+- 高影响画像变更的确认机制
+- 七个欲望方向展示
+- 陪伴状态展示
+- 本地认知日志与夜间微调流程
+- 低权重先验技能整合
+- 独立项目介绍页
+
+## 仓库结构
+
+- `apps/web`：本地 Web 应用
+- `packages/agent-runtime`：对话运行时与结构化输出处理
+- `packages/memory-core`：记忆、确认、投影、聊天历史
+- `packages/training-data`：训练样本生成与自我模型摘要
+- `packages/local-model-finetune`：本地微调流程
+- `packages/prior-engines`：先验技能与统一翻译层
+- `site/landing`：项目介绍页
+- `ops/caddy`：站点部署草案
+
+## 隐私与开源边界
+
+这个仓库是公开开源仓库，但**个人数据不属于公开代码的一部分**。
+
+不要提交以下内容：
 
 - `data/`
 - `apps/web/data/`
-- local runtime API keys
-- user profile snapshots
-- chat history
-- local training outputs and adapters
+- 本地聊天记录
+- 用户画像快照
+- 本地训练数据
+- 训练输出 adapter / checkpoint
+- 本地 API key / base URL 配置
 
-## Project Structure
-
-- `apps/web`: local web app for chat, self-modeling, and settings
-- `packages/agent-runtime`: runtime prompt and structured-output handling
-- `packages/memory-core`: memory store, projection, confirmation, and history logic
-- `packages/training-data`: training example generation and self-model digest logic
-- `packages/local-model-finetune`: local fine-tuning orchestration
-- `packages/prior-engines`: low-authority prior-system adapters and translation layer
-- `site/landing`: public project page for `xiaoxian.qyuanai.com`
-
-## Local Development
+## 本地开发
 
 ```bash
 npm install
 npm run dev
 ```
 
-The local app runs at:
+默认本地访问：
 
 ```text
 http://127.0.0.1:4173
 ```
 
-## Runtime Setup
-
-The app stores local runtime configuration in ignored files under `data/`.
-
-Typical values you will configure locally:
-
-- provider
-- model name
-- base URL
-- API key
-
-Keep those values local. Do not hardcode or commit them.
-
-## Validation
+## 验证
 
 ```bash
 npm test
 npm run typecheck
 ```
+
+## English Summary
+
+`xiaoxian AI` is a local-first personal assistant project focused on helping each person build an inspectable, correctable, privacy-preserving self-model.
+
+The core architectural idea is:
+
+- a stronger online model handles live conversation, instruction return, memory extraction, and tool use
+- a smaller local model handles long-term organization, local fine-tuning, and private user-specific adaptation
+
+We believe this is a more sustainable human-AI symbiosis pattern: strong shared intelligence for execution, private local intelligence for personal continuity.
 
 ## License
 

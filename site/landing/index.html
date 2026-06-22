@@ -49,7 +49,8 @@
       .nav,
       .hero,
       .grid,
-      .cta {
+      .cta,
+      .quote {
         background: var(--surface);
         border: 1px solid rgba(213, 225, 243, 0.92);
         backdrop-filter: blur(18px);
@@ -211,6 +212,10 @@
         gap: 14px;
       }
 
+      .cards.two {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
       .card {
         border: 1px solid rgba(213, 225, 243, 0.92);
         border-radius: 20px;
@@ -242,6 +247,24 @@
         gap: 18px;
       }
 
+      .quote {
+        margin-bottom: 18px;
+        padding: 26px;
+      }
+
+      .quote strong {
+        display: block;
+        margin-bottom: 10px;
+        font-size: 1.15rem;
+      }
+
+      .quote p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.78;
+        font-size: 1.02rem;
+      }
+
       .cta-copy h2 {
         margin: 0 0 8px;
         font-size: 1.45rem;
@@ -266,8 +289,12 @@
         }
 
         .hero,
-        .cards,
         .cta {
+          grid-template-columns: 1fr;
+        }
+
+        .cards,
+        .cards.two {
           grid-template-columns: 1fr;
         }
 
@@ -368,6 +395,27 @@
             </ul>
           </article>
         </div>
+      </section>
+
+      <section class="grid">
+        <h2 class="section-title">为什么是“小模型本地自训练 + 大模型在线执行”</h2>
+        <div class="cards two">
+          <article class="card">
+            <h3>强模型负责当下</h3>
+            <p>云端大模型更适合处理当前回合的自然对话、复杂语言理解、结构化抽取、指令返回和工具处理。它解决的是“现在这一轮怎么做得更好”。</p>
+          </article>
+          <article class="card">
+            <h3>小模型负责长期</h3>
+            <p>本地小模型更适合沉淀个人记忆、夜间整理当日经历、做用户专属微调，并在不暴露个人隐私的前提下慢慢形成更像这个用户自己的理解器。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="quote">
+        <strong>我们想推广的不只是一个产品，而是一种更合理的人与 AI 共生方式。</strong>
+        <p>
+          平台不需要拥有一个人的全部，个人也不应该为了个性化而交出全部。我们希望通过开源项目去证明：长期属于个人的数据、记忆和微调能力，可以留在个人本地；而更强的大模型则作为当前回合的理解层、执行层与工具层存在。这样的组合，也许更接近未来真正尊重人的 AI 形态。
+        </p>
       </section>
 
       <section class="cta">
