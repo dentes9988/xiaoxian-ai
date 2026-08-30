@@ -127,6 +127,7 @@ MBTI、八字、紫微、星盘、易经等内容，在这里不作为命运判�
 - 新适配器激活前的本地冒烟验证与失败回滚
 - 个性化赚钱建议与通用 AI 基线的同题对照评估
 - 对话内的外部赚钱动作授权队列：发布、联系、购买、开户和转账必须先授权，并在工具返回匹配证据后才能标记完成
+- 本地赚钱实验账本：预测收入、实验过程指标与有收款凭证的已核验收入分别记录
 - 低权重先验技能整合
 - 独立项目介绍页
 
@@ -156,7 +157,7 @@ MBTI、八字、紫微、星盘、易经等内容，在这里不作为命运判�
 - 训练输出 adapter / checkpoint
 - 本地 API key / base URL 配置
 
-赚钱任务中的研究、比较和草稿可以由 Agent 主动完成；发布内容、联系他人、购买、开户、转账等外部动作必须先获得用户明确授权。系统不能只凭文本声称已经赚到钱，必须有真实工具结果或收款记录作为证据。
+赚钱任务中的研究、比较和草稿可以由 Agent 主动完成；发布内容、联系他人、购买、开户、转账等外部动作必须先获得用户明确授权。预计收入不等于真实收入，咨询量等过程指标也不改变收入；系统只有在本地账本收到 `payment_record` 收款凭证后，才会增加已核验收入。
 
 ## 本地开发
 
@@ -209,6 +210,8 @@ The core architectural idea is:
 - a smaller local model handles long-term organization, local fine-tuning, and private user-specific adaptation
 
 During an active conversation, a resident local personalization worker prepares turn-specific hints before the stronger model replies. It sleeps after ten idle minutes, and nightly local training is scheduled inside the configured rest window. The application runs on macOS and Windows; the VibeThinker + MLX training path is currently verified only on Apple Silicon.
+
+External earning actions remain approval-gated. Projected revenue, experiment outcomes, and evidence-backed revenue are stored separately; only a `payment_record` increases verified revenue.
 
 We believe this is a more sustainable human-AI symbiosis pattern: strong shared intelligence for execution, private local intelligence for personal continuity.
 

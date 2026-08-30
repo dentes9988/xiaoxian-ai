@@ -12,8 +12,10 @@ import {
 } from "@98agent/memory-core";
 import {
   FileSystemEarningActionStore,
+  FileSystemEarningExperimentStore,
   OllamaRuntimeClient,
   OpenAICompatibleRuntimeClient,
+  earningActionEvidenceSchema,
   runEarningComparison,
   runRuntimeTurn
 } from "@98agent/agent-runtime";
@@ -63,6 +65,7 @@ const trainingConfigPath = join(dataRoot, "training-config.json");
 const trainingSchedulerStatePath = join(dataRoot, "training-scheduler-state.json");
 const desireStatePath = join(dataRoot, "desire-state.json");
 const earningActionsPath = join(dataRoot, "earning-actions.json");
+const earningExperimentsPath = join(dataRoot, "earning-experiments.json");
 const publicDir = fileURLToPath(new URL("../public", import.meta.url));
 const mingyuRoot = join(repoRoot, ".cache", "skills", "mingyu");
 const runtimeModel = process.env.OLLAMA_RUNTIME_MODEL ?? "gemma3:1b-it-qat";
@@ -72,6 +75,7 @@ const trainingPythonBin = resolveDefaultTrainingPythonBin(repoRoot);
 const store = new FileSystemMemoryStore(dataDir, "default-user");
 const modelRegistry = new FileSystemModelRegistry(join(dataRoot, "model-registry.json"));
 const earningActionStore = new FileSystemEarningActionStore(earningActionsPath);
+const earningExperimentStore = new FileSystemEarningExperimentStore(earningExperimentsPath);
 const personalizationWorker = new ResidentPersonalizationWorker({
   rootDir: repoRoot,
   registry: modelRegistry,
@@ -339,6 +343,11 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/earning/experiments") {
+    sendJson(res, 200, { experiments: await earningExperimentStore.list() });
+    return;
+  }
+
   const earningDecisionMatch = url.pathname.match(
     /^\/api\/earning\/actions\/([^/]+)\/decision$/
   );
@@ -357,6 +366,82 @@ const server = createServer(async (req, res) => {
     } catch (error) {
       sendJson(res, 409, {
         error: "earning_action_decision_failed",
+        detail: error instanceof Error ? error.message : String(error)
+      });
+    }
+    return;
+  }
+
+  const earningEvidenceMatch = url.pathname.match(
+    /^\/api\/earning\/actions\/([^/]+)\/evidence$/
+  );
+  if (req.method === "POST" && earningEvidenceMatch) {
+    try {
+      const body = (await readJson(req)) as Record<string, unknown>;
+      const evidence = earningActionEvidenceSchema.parse({
+        ...body,
+        recordedAt:
+          typeof body.recordedAt === "string" ? body.recordedAt : new Date().toISOString()
+      });
+      const action = await earningActionStore.complete(
+        decodeURIComponent(earningEvidenceMatch[1] ?? ""),
+        evidence
+      );
+      const startedExperiments =
+        action.kind === "publish_offer"
+          ? await earningExperimentStore.startForAction(action.id)
+          : [];
+      sendJson(res, 200, { ok: true, action, startedExperiments });
+    } catch (error) {
+      sendJson(res, 409, {
+        error: "earning_action_evidence_failed",
+        detail: error instanceof Error ? error.message : String(error)
+      });
+    }
+    return;
+  }
+
+  const earningMetricsMatch = url.pathname.match(
+    /^\/api\/earning\/experiments\/([^/]+)\/metrics$/
+  );
+  if (req.method === "POST" && earningMetricsMatch) {
+    try {
+      const body = (await readJson(req)) as Record<string, unknown>;
+      const experiment = await earningExperimentStore.recordMetrics(
+        decodeURIComponent(earningMetricsMatch[1] ?? ""),
+        body
+      );
+      sendJson(res, 200, { ok: true, experiment });
+    } catch (error) {
+      sendJson(res, 409, {
+        error: "earning_experiment_metrics_failed",
+        detail: error instanceof Error ? error.message : String(error)
+      });
+    }
+    return;
+  }
+
+  const earningRevenueMatch = url.pathname.match(
+    /^\/api\/earning\/experiments\/([^/]+)\/revenue$/
+  );
+  if (req.method === "POST" && earningRevenueMatch) {
+    try {
+      const body = (await readJson(req)) as Record<string, unknown>;
+      const experiment = await earningExperimentStore.recordRevenue(
+        decodeURIComponent(earningRevenueMatch[1] ?? ""),
+        {
+          kind: "payment_record",
+          amountCny: body.amountCny as number,
+          reference: body.reference as string,
+          recordedAt:
+            typeof body.recordedAt === "string" ? body.recordedAt : new Date().toISOString(),
+          actionId: typeof body.actionId === "string" ? body.actionId : undefined
+        }
+      );
+      sendJson(res, 200, { ok: true, experiment });
+    } catch (error) {
+      sendJson(res, 409, {
+        error: "earning_experiment_revenue_failed",
         detail: error instanceof Error ? error.message : String(error)
       });
     }

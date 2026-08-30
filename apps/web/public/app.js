@@ -104,6 +104,7 @@ const state = {
   runtimeConfig: null,
   trainingModelStatus: null,
   earningActions: [],
+  earningExperiments: [],
   submitting: false,
   nextMessageId: 1,
   chatMessages: [],
@@ -214,13 +215,15 @@ async function refreshModel() {
     healthResponse,
     runtimeConfigResponse,
     trainingModelStatusResponse,
-    earningActionsResponse
+    earningActionsResponse,
+    earningExperimentsResponse
   ] = await Promise.all([
     fetch("/api/self-model"),
     fetch("/api/health"),
     fetch("/api/runtime/config"),
     fetch("/api/train/model-status"),
-    fetch("/api/earning/actions")
+    fetch("/api/earning/actions"),
+    fetch("/api/earning/experiments")
   ]);
 
   state.selfModel = await selfModelResponse.json();
@@ -230,6 +233,10 @@ async function refreshModel() {
   const earningActionPayload = await earningActionsResponse.json();
   state.earningActions = Array.isArray(earningActionPayload.actions)
     ? earningActionPayload.actions
+    : [];
+  const earningExperimentPayload = await earningExperimentsResponse.json();
+  state.earningExperiments = Array.isArray(earningExperimentPayload.experiments)
+    ? earningExperimentPayload.experiments
     : [];
 
   byId("modelState").textContent = JSON.stringify(
@@ -487,12 +494,23 @@ function renderEarningActions(message) {
     completed: "已有工具证据，已完成",
     failed: "执行失败"
   };
+  const experimentStatusLabels = {
+    draft: "待发布",
+    running: "验证中",
+    paused: "已暂停",
+    completed: "已结束",
+    stopped: "已停止"
+  };
 
   return `
     <div class="earning-actions">
       ${actions
-        .map(
-          (action) => `
+        .map((action) => {
+          const experiment = state.earningExperiments.find(
+            (candidate) =>
+              Array.isArray(candidate.actionIds) && candidate.actionIds.includes(action.id)
+          );
+          return `
             <div class="earning-action">
               <div class="earning-action-head">
                 <strong>${escapeHtml(action.title)}</strong>
@@ -504,6 +522,15 @@ function renderEarningActions(message) {
               <p>${escapeHtml(action.description)}</p>
               <p class="earning-action-metric">验证标准：${escapeHtml(action.successMetric)}</p>
               <p class="earning-action-cost">预计成本：¥${escapeHtml(action.estimatedCostCny ?? 0)}</p>
+              ${
+                experiment
+                  ? `<p class="earning-action-revenue">实验${escapeHtml(
+                      experimentStatusLabels[experiment.status] || experiment.status
+                    )} · 预计 ¥${escapeHtml(
+                      experiment.projectedRevenueCny ?? 0
+                    )} · 已核验 ¥${escapeHtml(experiment.verifiedRevenueCny ?? 0)}</p>`
+                  : ""
+              }
               ${
                 action.status === "pending_approval"
                   ? `
@@ -526,8 +553,8 @@ function renderEarningActions(message) {
                   : ""
               }
             </div>
-          `
-        )
+          `;
+        })
         .join("")}
     </div>
   `;

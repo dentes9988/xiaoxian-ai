@@ -23,7 +23,6 @@ export const earningActionProposalSchema = z.object({
 
 export const earningActionEvidenceSchema = z.object({
   kind: z.enum([
-    "tool_result",
     "publication_url",
     "outreach_receipt",
     "purchase_receipt",
@@ -192,7 +191,6 @@ function isCompletionEvidence(
   actionKind: EarningActionRecord["kind"],
   evidenceKind: EarningActionEvidence["kind"]
 ): boolean {
-  if (evidenceKind === "tool_result") return true;
   const expected: Record<EarningActionRecord["kind"], EarningActionEvidence["kind"]> = {
     publish_offer: "publication_url",
     contact_prospect: "outreach_receipt",

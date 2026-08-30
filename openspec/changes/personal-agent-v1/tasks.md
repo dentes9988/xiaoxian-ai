@@ -40,7 +40,7 @@
 - [x] 5.5 Persist model-proposed external earning actions and expose approval or rejection inside the conversation
 - [x] 5.6 Prevent external earning actions from being marked complete without prior approval and matching tool evidence
 - [ ] 5.7 Connect approved earning actions to narrowly scoped channel executors with per-action tool receipts
-- [ ] 5.8 Track experiment outcomes and verified revenue separately from proposed or projected revenue
+- [x] 5.8 Track experiment outcomes and verified revenue separately from proposed or projected revenue
 
 ## 6. Memory review and user control surfaces
 

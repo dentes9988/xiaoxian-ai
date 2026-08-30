@@ -34,3 +34,25 @@ The runtime prompt SHALL prohibit API keys, passwords, bank account numbers, and
 - **WHEN** the agent prepares a public offer proposal
 - **THEN** the proposal can describe payment coordination privately
 - **AND** it does not include the user's bank account or credentials
+
+### Requirement: Projected and verified revenue remain separate
+
+The system SHALL store projected revenue, experiment outcome metrics, and verified revenue as separate fields. It SHALL increase verified revenue only from a unique `payment_record` evidence item attached to a running or completed experiment.
+
+#### Scenario: An experiment receives inquiries but no payment
+
+- **WHEN** qualified inquiries or other process metrics increase
+- **AND** no unique `payment_record` has been recorded
+- **THEN** verified revenue remains unchanged
+
+#### Scenario: A payment receipt is recorded
+
+- **WHEN** a running experiment receives a unique `payment_record` with a positive amount and receipt reference
+- **THEN** the system adds that amount to verified revenue
+- **AND** projected revenue remains unchanged
+
+#### Scenario: The same receipt is submitted twice
+
+- **WHEN** a payment record repeats an existing evidence identifier or receipt reference
+- **THEN** the duplicate is rejected
+- **AND** verified revenue is not increased twice

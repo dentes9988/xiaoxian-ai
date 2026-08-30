@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   FileSystemEarningActionStore,
+  earningActionEvidenceSchema,
   parseEarningActionProposals
 } from "../src/earning-actions.js";
 
@@ -82,6 +83,14 @@ describe("earning action approval store", () => {
 
     const approved = await store.decide(created.id, "approved");
     expect(approved.status).toBe("approved");
+
+    expect(
+      earningActionEvidenceSchema.safeParse({
+        kind: "tool_result",
+        reference: "generic-tool-output",
+        recordedAt: new Date().toISOString()
+      }).success
+    ).toBe(false);
 
     await expect(
       store.complete(created.id, {

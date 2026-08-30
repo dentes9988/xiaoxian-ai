@@ -155,10 +155,10 @@ describe("local-model-finetune", () => {
   it("uses the adapter directory when the registry stores a safetensors file path", () => {
     expect(
       resolveAdapterLoadPath(
-        "/Users/liuchaoren/Documents/98Agent/data/checkpoints/2026-06-22T13-17-41-856Z/adapters.safetensors"
+        "/tmp/xiaoxian-ai/data/checkpoints/2026-06-22T13-17-41-856Z/adapters.safetensors"
       )
     ).toBe(
-      "/Users/liuchaoren/Documents/98Agent/data/checkpoints/2026-06-22T13-17-41-856Z"
+      "/tmp/xiaoxian-ai/data/checkpoints/2026-06-22T13-17-41-856Z"
     );
   });
 
