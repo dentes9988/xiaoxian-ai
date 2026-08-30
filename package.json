@@ -11,6 +11,8 @@
     "setup": "npm install",
     "setup:training:mac": "bash ./scripts/setup-local-training-macos.sh",
     "check:training:mac": "bash ./scripts/check-local-training-macos.sh",
+    "setup:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/setup-windows.ps1",
+    "check:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-windows.ps1",
     "build": "npm run build --workspaces --if-present",
     "dev": "npm run dev --workspace @98agent/web",
     "test": "vitest run",

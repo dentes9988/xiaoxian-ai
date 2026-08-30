@@ -11,6 +11,8 @@ describe("runtime prompts", () => {
     expect(prompt).toContain("candidateMemories");
     expect(prompt).toContain("collect it naturally through the conversation");
     expect(prompt).toContain("Do not wrap JSON in markdown fences.");
+    expect(prompt).toContain("Require explicit approval before publishing");
+    expect(prompt).toContain("Never claim that money was earned");
   });
 
   it("includes the current projection when available", () => {
@@ -37,5 +39,16 @@ describe("runtime prompts", () => {
 
     expect(prompt).toContain("Current self-model digest:");
     expect(prompt).toContain("Stable facts: lives in Xi'an. Active goals: improve cash flow.");
+  });
+
+  it("includes local personalized hints for the current turn when available", () => {
+    const prompt = buildRuntimeSystemPrompt(
+      undefined,
+      undefined,
+      ["User is seeking a low-pressure way to stabilize income this week."]
+    );
+
+    expect(prompt).toContain("Local personalized hints for this turn:");
+    expect(prompt).toContain("User is seeking a low-pressure way to stabilize income this week.");
   });
 });

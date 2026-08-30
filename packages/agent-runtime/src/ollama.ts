@@ -1,9 +1,12 @@
 import { runtimeTurnResultSchema, type RuntimeMessage, type RuntimeTurnResult } from "./schemas.js";
+import { extractJsonPayload } from "./json.js";
 
 export interface OllamaRuntimeOptions {
   baseUrl?: string;
   model?: string;
   timeoutMs?: number;
+  maxOutputTokens?: number;
+  keepAlive?: string;
 }
 
 export class OllamaRuntimeClient {
@@ -20,6 +23,12 @@ export class OllamaRuntimeClient {
         model: this.options.model ?? "NitrAI/VibeThinker-3B:latest",
         stream: false,
         format: "json",
+        think: false,
+        keep_alive: this.options.keepAlive ?? "10m",
+        options: {
+          temperature: 0.2,
+          num_predict: this.options.maxOutputTokens ?? 768
+        },
         messages: [{ role: "system", content: systemPrompt }, ...messages]
       })
     });
@@ -38,34 +47,22 @@ export class OllamaRuntimeClient {
   }
 }
 
-function extractJsonPayload(content: string): unknown {
-  try {
-    return JSON.parse(content);
-  } catch {
-    const start = content.indexOf("{");
-    const end = content.lastIndexOf("}");
-    if (start >= 0 && end > start) {
-      return JSON.parse(content.slice(start, end + 1));
-    }
-    throw new Error("No JSON object found in model response");
-  }
-}
-
 function normalizeRuntimeTurnResult(content: string): RuntimeTurnResult {
-  const payload = extractJsonPayload(content) as Record<string, unknown>;
+  const payload = extractJsonPayload(content);
+  const record = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
   const reply =
-    typeof payload.reply === "string"
-      ? payload.reply
-      : typeof payload.answer === "string"
-        ? payload.answer
-        : typeof payload.message === "string"
-          ? payload.message
+    typeof record.reply === "string"
+      ? record.reply
+      : typeof record.answer === "string"
+        ? record.answer
+        : typeof record.message === "string"
+          ? record.message
           : content;
 
-  const candidateMemories = Array.isArray(payload.candidateMemories)
-    ? payload.candidateMemories
-    : Array.isArray(payload.memoryCandidates)
-      ? payload.memoryCandidates
+  const candidateMemories = Array.isArray(record.candidateMemories)
+    ? record.candidateMemories
+    : Array.isArray(record.memoryCandidates)
+      ? record.memoryCandidates
       : [];
 
   return runtimeTurnResultSchema.parse({

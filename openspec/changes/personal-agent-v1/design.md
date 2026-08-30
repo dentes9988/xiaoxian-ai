@@ -42,6 +42,48 @@ Alternatives considered:
 - Fully local live-reasoning model: stronger privacy, but too risky for ordinary-user quality in V1.
 - Local model for first-pass extraction only: weaker than using the stronger runtime model that already sees the turn context.
 
+### Decision: Use a lightweight resident local personalization worker with idle sleep
+
+The local turn-personalization layer will use a lightweight resident worker whose main purpose is to keep the personal-model weights, tokenizer, and adapter warm during active use. The worker should automatically sleep after 10 minutes of inactivity.
+
+Why:
+- The current per-turn cold start path pays the cost of process launch and model loading on every turn.
+- The local model is only being used for pre-reply personalization hints, so the main value of residency is latency reduction rather than hidden state accumulation.
+- An idle-sleep policy limits background memory pressure and power impact while preserving a responsive experience during active conversation sessions.
+
+Guardrails:
+- The resident worker should cache computation assets, not unlogged user-state drift.
+- Every turn should still pass explicit inputs such as current message, current projection, and self-model digest.
+- The worker should be allowed to hold model weights, tokenizer state, adapter state, and bounded operational caches only.
+- The worker should not silently accumulate durable or semi-durable user interpretations outside the normal memory and confirmation pipeline.
+- When a new adapter is trained, the worker should reload in a controlled way rather than mixing old and new personalization state.
+
+Expected trade-offs:
+- Better median response time during active chatting.
+- Higher steady-state memory footprint while the worker is awake.
+- More operational complexity around health checks, restart, reload, and idle lifecycle.
+
+Alternatives considered:
+- Spawn a fresh local personalization process for every turn: simpler lifecycle, but worse latency and more repeated load cost.
+- Keep the worker always resident: fastest, but too costly in background resource use for ordinary-user devices.
+- Let the resident worker keep hidden conversational state: potentially more adaptive, but misaligned with the product's emphasis on inspectability and explicit memory governance.
+
+### Decision: Gate trained-adapter activation on a local smoke evaluation
+
+A completed fine-tuning process does not automatically mean that the produced adapter is usable. Every newly trained adapter must pass a local, non-personal smoke prompt before it can replace the active adapter.
+
+Why:
+- A training command can finish successfully while producing degenerate generation behavior.
+- Automatic activation without behavioral validation can silently degrade every later conversation.
+- Keeping the previous active adapter until validation passes makes rollback the default behavior rather than an emergency repair.
+
+Activation behavior:
+- Register a completed adapter as ready first.
+- Run a local smoke prompt and require multiple distinct, usable personalization hints.
+- Activate the new checkpoint only after the smoke test passes.
+- Mark a failed candidate as failed and keep the previous active checkpoint unchanged.
+- Preserve the failed checkpoint metadata and validation reason for diagnosis.
+
 ### Decision: Make self-modeling the moat and earning help the wedge
 
 V1 will keep self-modeling as the core differentiator while using short-term earning assistance as the first daily-use scenario that must be measurably better than a generic AI baseline.
@@ -108,6 +150,24 @@ Alternatives considered:
 - Full archive retrieval for every task: easier conceptually, but noisy and expensive.
 - Current projection only: too brittle for nuanced or contested decisions.
 
+### Decision: Support Windows as a first documented local-install target
+
+The project remains mac-first in implementation posture, but Windows must be supported as a first documented install target in the public project documentation.
+
+Why:
+- The product vision is broader than one device segment.
+- Requiring macOS-only setup documentation weakens open-source adoption and makes local privacy claims feel exclusive to one platform.
+- Even if some local-model workflows differ between Apple Silicon and Windows, the project should explain the supported path clearly instead of leaving Windows users to infer it.
+
+Implications:
+- Installation instructions may differ by platform for Python, local runtime, and training dependencies.
+- The documentation should distinguish between "chat runtime can be used" and "local training path is currently supported" when support depth differs by platform.
+- README and project-page messaging should make cross-platform expectations explicit and honest.
+
+Alternatives considered:
+- Keep Windows unsupported until full parity exists: simpler, but slows adoption and hides the practical install path for non-mac users.
+- Claim full parity without documenting platform differences: easier marketing, but risky and misleading.
+
 ## Risks / Trade-offs
 
 - [Risk] The first-run calibration may feel like a personality test instead of an assistant. → Mitigation: keep first-run calibration under five scenario questions and move utility into the first real task quickly.
@@ -115,7 +175,11 @@ Alternatives considered:
 - [Risk] Optional priors may dominate public perception of the product. → Mitigation: keep them optional, low-authority, and primarily used to shape early questions rather than final conclusions.
 - [Risk] Logging every candidate-memory extraction increases local storage and privacy sensitivity. → Mitigation: implement layered retention controls and separate raw logs from durable memory assets.
 - [Risk] Nightly local training may be too heavy for ordinary-user devices. → Mitigation: schedule within user rest windows, support checkpoint rollback, and allow training to be disabled without breaking the core runtime.
+- [Risk] A resident personalization worker may consume too much idle memory or battery. → Mitigation: use a light resident worker, enforce idle sleep after 10 minutes, and keep the resident scope limited to model-serving assets.
+- [Risk] A resident worker may introduce hidden state that is not user-visible. → Mitigation: pass explicit per-turn inputs only and keep durable interpretation in the formal memory pipeline.
+- [Risk] A technically completed fine-tune may produce degenerate output. → Mitigation: gate activation on a local smoke evaluation and retain the previous active adapter on failure.
 - [Risk] The self-model may still overfit to temporary states. → Mitigation: require time windows, preserve superseded items, and block high-impact promotions without confirmation.
+- [Risk] Windows support may lag macOS implementation details. → Mitigation: document supported depth explicitly, distinguish runtime support from training support, and keep platform-specific setup paths separate in the documentation.
 
 ## Migration Plan
 
@@ -126,6 +190,8 @@ Alternatives considered:
 5. Implement the memory decision pipeline, confirmation flow, and current-projection builder.
 6. Implement the earning-assistance task flow and baseline evaluation harness.
 7. Implement the nightly training-data build, local fine-tune orchestration, and rollback-safe checkpoint update path.
+8. Implement the lightweight resident personalization worker, health/reload lifecycle, and 10-minute idle sleep behavior.
+9. Add platform-specific installation documentation for macOS and Windows, and mirror the supported paths in the public project page.
 
 Rollback strategy:
 - Because this is a greenfield V1 change, rollback is primarily about checkpoint and durable-memory safety.
@@ -138,3 +204,5 @@ Rollback strategy:
 - Which structured output format and validation layer should be used for candidate-memory extraction from the online model?
 - What baseline evaluation dataset shape best captures "better short-term earning help" without becoming too synthetic?
 - How heavy a local fine-tuning workflow can the first ordinary-user target device realistically support?
+- What is the best IPC boundary for the resident personalization worker: local HTTP, stdio daemon, socket, or another process contract?
+- On Windows, which local-model and training path should be treated as officially supported first if Apple-Silicon-specific MLX is unavailable?

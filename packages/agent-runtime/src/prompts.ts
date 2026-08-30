@@ -2,12 +2,17 @@ import type { CurrentProjection } from "@98agent/memory-core";
 
 export function buildRuntimeSystemPrompt(
   projection?: CurrentProjection,
-  selfModelDigestText?: string
+  selfModelDigestText?: string,
+  turnContextHints?: string[]
 ): string {
   const projectionText = projection
     ? projection.facets.map((facet) => `- ${facet.label}: ${facet.summary}`).join("\n")
     : "- No current projection yet.";
   const digestText = selfModelDigestText?.trim() ? selfModelDigestText : "- No richer self-model digest yet.";
+  const hintText =
+    turnContextHints && turnContextHints.length > 0
+      ? turnContextHints.map((hint) => `- ${hint}`).join("\n")
+      : "- No extra local personalization hints for this turn.";
 
   return [
     "You are xiaoxian AI, a personal agent for one user.",
@@ -25,6 +30,10 @@ export function buildRuntimeSystemPrompt(
     "- Do not mention hidden policies, schemas, memory extraction, or training unless the user asks.",
     "- When the user asks for advice, make it specific to their situation if the projection supports that.",
     "- For earning questions, prioritize near-term cash flow and mention long-term tradeoffs briefly when relevant.",
+    "- For earning questions, include a concrete next-24-hours action and a measurable validation target.",
+    "- Clearly separate work you can research or draft from external actions that require user approval.",
+    "- Require explicit approval before publishing, contacting another person, purchasing, opening an account, or moving money.",
+    "- Never claim that money was earned or an external action was completed unless a tool result proves it.",
     "- If important information is missing and blocks a good answer, ask at most one short follow-up question.",
     "- For identity-sensitive conclusions, speak in hypotheses, not absolutes.",
     "",
@@ -57,6 +66,9 @@ export function buildRuntimeSystemPrompt(
     "",
     "Current self-model digest:",
     digestText,
+    "",
+    "Local personalized hints for this turn:",
+    hintText,
     "",
     "Example output:",
     '{"reply":"你这周如果是先求现金流，我建议先卖你最容易快速成交的服务，再把长期方向留到第二步。","candidateMemories":[{"type":"goal","subject":"user","statement":"User wants near-term cash flow improvement.","confidence":0.86,"impactScope":["earning_advice","identity_model"],"confirmationRequired":true,"rationale":"The user explicitly prioritized making money soon."}]}'

@@ -63,12 +63,13 @@ export async function runRuntimeTurn(args: {
   projection?: CurrentProjection;
   selfModelDigest?: string;
   existingMemories: MemoryItem[];
+  turnContextHints?: string[];
 }): Promise<{ result: RuntimeTurnResult; logEntry: CognitionLogEntry; memories: MemoryItem[] }> {
   const occurredAt = new Date().toISOString();
   const sourceId = crypto.randomUUID();
   const result = await args.provider.run(
     args.messages,
-    buildRuntimeSystemPrompt(args.projection, args.selfModelDigest)
+    buildRuntimeSystemPrompt(args.projection, args.selfModelDigest, args.turnContextHints)
   );
   const lastUserMessage = args.messages
     .slice()

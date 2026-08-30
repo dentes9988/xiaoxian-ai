@@ -314,6 +314,7 @@
           <span>xiaoxian AI</span>
         </div>
         <div class="nav-links">
+          <a class="pill" href="https://github.com/dentes9988/xiaoxian-ai#本地开发" target="_blank" rel="noreferrer">安装说明</a>
           <a class="pill" href="https://github.com/dentes9988/xiaoxian-ai" target="_blank" rel="noreferrer">GitHub</a>
           <a class="button secondary" href="#about">项目说明</a>
         </div>
@@ -327,8 +328,8 @@
           </p>
           <div class="hero-actions">
             <a class="button" href="https://github.com/dentes9988/xiaoxian-ai" target="_blank" rel="noreferrer">查看开源仓库</a>
-            <span class="pill">mac 版本优先</span>
-            <span class="pill">本地训练优先</span>
+            <span class="pill">macOS + Windows</span>
+            <span class="pill">Apple Silicon 本地训练已验证</span>
           </div>
         </div>
 
@@ -382,7 +383,7 @@
             <h3>隐私优先</h3>
             <ul>
               <li>记忆、训练数据、适配器默认本地保存</li>
-              <li>云端模型只负责对话与结构化抽取</li>
+              <li>本地模型先提供当轮个性化提示，云端模型负责对话与结构化抽取</li>
               <li>持续微调在用户本地按作息时段完成</li>
             </ul>
           </article>
@@ -390,7 +391,8 @@
             <h3>开源可扩展</h3>
             <ul>
               <li>每个人都能部署自己的助理</li>
-              <li>前期以单用户 mac 版本为主</li>
+              <li>macOS 与 Windows 均可运行本地应用</li>
+              <li>Windows 训练路径会在实机验证后开放</li>
               <li>未来可以扩展到更多任务执行能力</li>
             </ul>
           </article>
@@ -406,7 +408,7 @@
           </article>
           <article class="card">
             <h3>小模型负责长期</h3>
-            <p>本地小模型更适合沉淀个人记忆、夜间整理当日经历、做用户专属微调，并在不暴露个人隐私的前提下慢慢形成更像这个用户自己的理解器。</p>
+            <p>本地小模型先从当前消息与自我模型中提取个性化提示，再把它交给强模型回答；夜间按休息窗口整理当天经历并微调。活跃对话复用常驻模型，空闲 10 分钟自动休眠，新适配器通过冒烟验证后才会启用。</p>
           </article>
         </div>
       </section>
@@ -420,13 +422,13 @@
 
       <section class="cta">
         <div class="cta-copy">
-          <h2>现在先做一个真正可用、可本地训练、可公开开源的版本。</h2>
+          <h2>现在先做一个真正可用、可安装、可持续学习的开源版本。</h2>
           <p>xiaoxian AI 的第一步，不是成为平台，而是让普通人真的拥有一个更懂自己的助理。</p>
         </div>
         <a class="button" href="https://github.com/dentes9988/xiaoxian-ai" target="_blank" rel="noreferrer">前往 GitHub</a>
       </section>
 
-      <div class="footer">xiaoxian AI · local-first personal assistant · mac-first open-source release</div>
+      <div class="footer">xiaoxian AI · local-first personal assistant · macOS and Windows</div>
     </div>
   </body>
 </html>

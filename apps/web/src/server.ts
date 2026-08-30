@@ -13,6 +13,7 @@ import {
 import {
   OllamaRuntimeClient,
   OpenAICompatibleRuntimeClient,
+  runEarningComparison,
   runRuntimeTurn
 } from "@98agent/agent-runtime";
 import {
@@ -39,8 +40,11 @@ import {
   getTrainingModelCandidateStatuses,
   getTrainingModelPreparationStatus,
   loadTrainingControlConfig,
+  NightlyTrainingScheduler,
   planFastFineTune,
   prepareTrainingModel,
+  ResidentPersonalizationWorker,
+  resolveDefaultTrainingPythonBin,
   runFastFineTune,
   saveTrainingControlConfig,
   writeMlxChatDataset,
@@ -55,14 +59,30 @@ const profilePath = join(dataRoot, "profile.json");
 const runtimeConfigPath = join(dataRoot, "runtime-config.json");
 const priorSkillOutputsPath = join(dataRoot, "prior-skill-outputs.json");
 const trainingConfigPath = join(dataRoot, "training-config.json");
+const trainingSchedulerStatePath = join(dataRoot, "training-scheduler-state.json");
 const desireStatePath = join(dataRoot, "desire-state.json");
 const publicDir = fileURLToPath(new URL("../public", import.meta.url));
 const mingyuRoot = join(repoRoot, ".cache", "skills", "mingyu");
 const runtimeModel = process.env.OLLAMA_RUNTIME_MODEL ?? "gemma3:1b-it-qat";
 const personalModelBase = process.env.PERSONAL_MODEL_BASE ?? "NitrAI/VibeThinker-3B:latest";
 const trainingEnabled = process.env.PERSONAL_MODEL_TRAINING_ENABLED !== "false";
+const trainingPythonBin = resolveDefaultTrainingPythonBin(repoRoot);
 const store = new FileSystemMemoryStore(dataDir, "default-user");
 const modelRegistry = new FileSystemModelRegistry(join(dataRoot, "model-registry.json"));
+const personalizationWorker = new ResidentPersonalizationWorker({
+  rootDir: repoRoot,
+  registry: modelRegistry,
+  idleTimeoutMs: 10 * 60 * 1000
+});
+let trainingRunPromise: Promise<TrainingExecutionResult> | null = null;
+const nightlyTrainingScheduler = new NightlyTrainingScheduler({
+  statePath: trainingSchedulerStatePath,
+  loadConfig: async () => {
+    const config = await loadTrainingControlConfig(trainingConfigPath);
+    return { ...config, enabled: trainingEnabled && config.enabled };
+  },
+  run: async (now) => (await executeTraining({ respectWindow: true, now })).trainingRun
+});
 let mingyuInstallPromise: Promise<void> | null = null;
 
 interface RuntimeConfig {
@@ -82,6 +102,15 @@ interface PriorGeneratorContext {
   profile: PriorProfileInput;
   generatedAt: string;
   modelConfig?: CloudModelConfig;
+}
+
+interface TrainingExecutionResult {
+  examples: number;
+  priorSkillOutputs: number;
+  mlxDataset: Awaited<ReturnType<typeof writeMlxChatDataset>>;
+  plan: ReturnType<typeof planFastFineTune>;
+  trainingRun: Awaited<ReturnType<typeof runFastFineTune>>;
+  modelRegistry: Awaited<ReturnType<FileSystemModelRegistry["load"]>>;
 }
 
 function buildRuntimeUnavailableMessage(config: RuntimeConfig): string {
@@ -265,13 +294,32 @@ const server = createServer(async (req, res) => {
       runtimeProvider: runtimeConfig.provider,
       runtimeModel: runtimeConfig.model,
       personalModelBase,
-      trainingConfig: await loadTrainingControlConfig(trainingConfigPath)
+      trainingConfig: await loadTrainingControlConfig(trainingConfigPath),
+      personalizationWorker: personalizationWorker.getStatus(),
+      nightlyTraining: await nightlyTrainingScheduler.getStatus()
     });
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/local-personalization/health") {
+    sendJson(res, 200, await personalizationWorker.healthCheck());
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/local-personalization/restart") {
+    await personalizationWorker.sleep("manual_restart");
+    sendJson(res, 200, { ok: true, personalizationWorker: personalizationWorker.getStatus() });
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/api/runtime/config") {
-    sendJson(res, 200, await loadRuntimeConfig());
+    const runtimeConfig = await loadRuntimeConfig();
+    sendJson(res, 200, {
+      provider: runtimeConfig.provider,
+      model: runtimeConfig.model,
+      baseUrl: runtimeConfig.baseUrl,
+      apiKeyConfigured: Boolean(runtimeConfig.apiKey)
+    });
     return;
   }
 
@@ -284,16 +332,25 @@ const server = createServer(async (req, res) => {
   }
 
   if (req.method === "POST" && url.pathname === "/api/runtime/config") {
-    const body = (await readJson(req)) as Partial<RuntimeConfig>;
+    const body = (await readJson(req)) as Partial<RuntimeConfig> & { clearApiKey?: boolean };
     const current = await loadRuntimeConfig();
+    const submittedApiKey = typeof body.apiKey === "string" ? body.apiKey.trim() : "";
     const next: RuntimeConfig = {
       provider: body.provider ?? current.provider,
       model: body.model ?? current.model,
       baseUrl: body.baseUrl ?? current.baseUrl,
-      apiKey: body.apiKey ?? current.apiKey
+      apiKey: body.clearApiKey ? "" : submittedApiKey || current.apiKey
     };
     await saveRuntimeConfig(next);
-    sendJson(res, 200, { ok: true, runtimeConfig: next });
+    sendJson(res, 200, {
+      ok: true,
+      runtimeConfig: {
+        provider: next.provider,
+        model: next.model,
+        baseUrl: next.baseUrl,
+        apiKeyConfigured: Boolean(next.apiKey)
+      }
+    });
     return;
   }
 
@@ -405,14 +462,16 @@ const server = createServer(async (req, res) => {
       baseModel: plan.baseModel,
       dataDir: plan.datasetDir,
       runDir: plan.runDir,
-      maxDurationSeconds: plan.maxDurationSeconds
+      maxDurationSeconds: plan.maxDurationSeconds,
+      pythonBin: trainingPythonBin
     });
     const candidateStatuses = await getTrainingModelCandidateStatuses({
       scriptPath: join(repoRoot, "packages", "local-model-finetune", "scripts", "run_mlx_lora.py"),
       baseModel: plan.baseModel,
       dataDir: plan.datasetDir,
       runDir: plan.runDir,
-      maxDurationSeconds: plan.maxDurationSeconds
+      maxDurationSeconds: plan.maxDurationSeconds,
+      pythonBin: trainingPythonBin
     });
     sendJson(res, 200, {
       ok: true,
@@ -442,7 +501,8 @@ const server = createServer(async (req, res) => {
         baseModel: plan.baseModel,
         dataDir: plan.datasetDir,
         runDir: plan.runDir,
-        maxDurationSeconds: plan.maxDurationSeconds
+        maxDurationSeconds: plan.maxDurationSeconds,
+        pythonBin: trainingPythonBin
       });
       sendJson(res, 200, {
         ok: true,
@@ -497,21 +557,27 @@ const server = createServer(async (req, res) => {
         currentProjection: snapshot.currentProjection,
         cognitionLogs: snapshot.cognitionLogs
       });
-      const runtime =
-        runtimeConfig.provider === "qyuanai" && runtimeConfig.apiKey && runtimeConfig.baseUrl
-          ? new OpenAICompatibleRuntimeClient({
-              apiKey: runtimeConfig.apiKey,
-              baseUrl: runtimeConfig.baseUrl,
-              model: runtimeConfig.model,
-              timeoutMs: 20000
-            })
-          : new OllamaRuntimeClient({ model: runtimeConfig.model, timeoutMs: 15000 });
+      const localTurnPersonalization = trainingRunPromise
+        ? {
+            status: "skipped" as const,
+            turnContextHints: [],
+            reason: "Local personalization is paused while local training is running."
+          }
+        : await personalizationWorker.personalize({
+            userMessage: body.message,
+            projectionText: renderProjectionForPrompt(
+              snapshot.currentProjection ?? buildCurrentProjection("default-user", [])
+            ),
+            selfModelDigestText: renderSelfModelDigestForPrompt(selfModelDigest)
+          });
+      const runtime = createRuntimeProvider(runtimeConfig);
       const runtimeTurn = await runRuntimeTurn({
         provider: runtime,
         messages: [{ role: "user", content: body.message }],
         projection: snapshot.currentProjection ?? buildCurrentProjection("default-user", []),
         selfModelDigest: renderSelfModelDigestForPrompt(selfModelDigest),
-        existingMemories: snapshot.memories
+        existingMemories: snapshot.memories,
+        turnContextHints: localTurnPersonalization.turnContextHints
       });
 
       await store.appendLog(runtimeTurn.logEntry);
@@ -544,11 +610,78 @@ const server = createServer(async (req, res) => {
 
       sendJson(res, 200, {
         ...runtimeTurn.result,
-        desireState
+        desireState,
+        localTurnPersonalization
       });
     } catch (error) {
       sendJson(res, 502, {
         error: "runtime_unavailable",
+        message: buildRuntimeUnavailableMessage(runtimeConfig ?? (await loadRuntimeConfig())),
+        detail: error instanceof Error ? error.message : String(error)
+      });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/evaluate/earning") {
+    let runtimeConfig: RuntimeConfig | null = null;
+    try {
+      const body = (await readJson(req)) as {
+        message?: string;
+        personalSignals?: unknown[];
+      };
+      const message = body.message?.trim() ?? "";
+      if (!message) {
+        sendJson(res, 400, { error: "message_required" });
+        return;
+      }
+
+      const personalSignals = (body.personalSignals ?? [])
+        .filter((signal): signal is string => typeof signal === "string")
+        .map((signal) => signal.trim())
+        .filter(Boolean)
+        .slice(0, 12);
+      const snapshot = await store.getSnapshot();
+      runtimeConfig = await loadRuntimeConfig();
+      const profile = await loadProfile();
+      const priorSkillOutputs = await loadPriorSkillOutputs(priorSkillOutputsPath);
+      const priors = buildPriorHints(profile, priorSkillOutputs);
+      const selfModelDigest = buildSelfModelDigest({
+        profile,
+        priors,
+        memories: snapshot.memories,
+        currentProjection: snapshot.currentProjection,
+        cognitionLogs: snapshot.cognitionLogs
+      });
+      const localTurnPersonalization = trainingRunPromise
+        ? {
+            status: "skipped" as const,
+            turnContextHints: [],
+            reason: "Local personalization is paused while local training is running."
+          }
+        : await personalizationWorker.personalize({
+            userMessage: message,
+            projectionText: renderProjectionForPrompt(
+              snapshot.currentProjection ?? buildCurrentProjection("default-user", [])
+            ),
+            selfModelDigestText: renderSelfModelDigestForPrompt(selfModelDigest)
+          });
+      const comparison = await runEarningComparison({
+        provider: createRuntimeProvider(runtimeConfig),
+        scenario: {
+          id: crypto.randomUUID(),
+          userMessage: message,
+          projection: snapshot.currentProjection ?? buildCurrentProjection("default-user", []),
+          selfModelDigest: renderSelfModelDigestForPrompt(selfModelDigest),
+          turnContextHints: localTurnPersonalization.turnContextHints,
+          personalSignals
+        }
+      });
+
+      sendJson(res, 200, { ok: true, localTurnPersonalization, comparison });
+    } catch (error) {
+      sendJson(res, 502, {
+        error: "earning_evaluation_failed",
         message: buildRuntimeUnavailableMessage(runtimeConfig ?? (await loadRuntimeConfig())),
         detail: error instanceof Error ? error.message : String(error)
       });
@@ -561,49 +694,10 @@ const server = createServer(async (req, res) => {
       const body = ((await readJson(req).catch(() => ({}))) ?? {}) as {
         respectWindow?: boolean;
       };
-      const snapshot = await store.getSnapshot();
-      const profile = await loadProfile();
-      const runtimeConfig = await loadRuntimeConfig();
-      const trainingConfig = await loadTrainingControlConfig(trainingConfigPath);
-      const priorSkillOutputs = await ensurePriorSkillOutputs(profile, runtimeConfig);
-      const priors = buildPriorHints(profile, priorSkillOutputs);
-      const selfModelDigest = buildSelfModelDigest({
-        profile,
-        priors,
-        memories: snapshot.memories,
-        currentProjection: snapshot.currentProjection,
-        cognitionLogs: snapshot.cognitionLogs
-      });
-      const examples = [
-        ...buildProfileSeedExamples(profile, priors),
-        ...buildPriorSkillExamples(priorSkillOutputs),
-        ...buildSelfModelExamples(selfModelDigest),
-        ...buildTrainingExamples(snapshot.cognitionLogs)
-      ];
-      const plan = planFastFineTune({
-        rootDir: repoRoot,
-        config: {
-          ...trainingConfig,
-          enabled: trainingEnabled && trainingConfig.enabled
-        }
-      });
-      await writeTrainingDataset(plan.datasetPath, examples);
-      const mlxDataset = await writeMlxChatDataset(plan.datasetDir, examples);
-      const trainingRun = await runFastFineTune({
-        rootDir: repoRoot,
-        plan,
-        registry: modelRegistry,
-        exampleCount: mlxDataset.trainCount,
-        respectWindow: body.respectWindow ?? false
-      });
+      const execution = await executeTraining({ respectWindow: body.respectWindow ?? false });
       sendJson(res, 200, {
         ok: true,
-        examples: examples.length,
-        priorSkillOutputs: priorSkillOutputs.length,
-        mlxDataset,
-        plan,
-        trainingRun,
-        modelRegistry: await modelRegistry.load()
+        ...execution
       });
     } catch (error) {
       sendJson(res, 500, {
@@ -616,6 +710,69 @@ const server = createServer(async (req, res) => {
 
   await serveStatic(url.pathname, res);
 });
+
+async function executeTraining(args: {
+  respectWindow: boolean;
+  now?: Date;
+}): Promise<TrainingExecutionResult> {
+  if (trainingRunPromise) return trainingRunPromise;
+
+  const run = (async (): Promise<TrainingExecutionResult> => {
+    await personalizationWorker.sleep("training_started");
+    const snapshot = await store.getSnapshot();
+    const profile = await loadProfile();
+    const trainingConfig = await loadTrainingControlConfig(trainingConfigPath);
+    const priorSkillOutputs = await loadPriorSkillOutputs(priorSkillOutputsPath);
+    const priors = buildPriorHints(profile, priorSkillOutputs);
+    const selfModelDigest = buildSelfModelDigest({
+      profile,
+      priors,
+      memories: snapshot.memories,
+      currentProjection: snapshot.currentProjection,
+      cognitionLogs: snapshot.cognitionLogs
+    });
+    const examples = [
+      ...buildProfileSeedExamples(profile, priors),
+      ...buildPriorSkillExamples(priorSkillOutputs),
+      ...buildSelfModelExamples(selfModelDigest),
+      ...buildTrainingExamples(snapshot.cognitionLogs)
+    ];
+    const plan = planFastFineTune({
+      rootDir: repoRoot,
+      config: {
+        ...trainingConfig,
+        enabled: trainingEnabled && trainingConfig.enabled
+      }
+    });
+    await writeTrainingDataset(plan.datasetPath, examples);
+    const mlxDataset = await writeMlxChatDataset(plan.datasetDir, examples);
+    const trainingRun = await runFastFineTune({
+      rootDir: repoRoot,
+      plan,
+      registry: modelRegistry,
+      exampleCount: mlxDataset.trainCount,
+      respectWindow: args.respectWindow,
+      now: args.now,
+      pythonBin: trainingPythonBin
+    });
+
+    return {
+      examples: examples.length,
+      priorSkillOutputs: priorSkillOutputs.length,
+      mlxDataset,
+      plan,
+      trainingRun,
+      modelRegistry: await modelRegistry.load()
+    };
+  })();
+
+  trainingRunPromise = run;
+  try {
+    return await run;
+  } finally {
+    if (trainingRunPromise === run) trainingRunPromise = null;
+  }
+}
 
 async function ensurePriorSkillOutputs(
   profile: PriorProfileInput,
@@ -645,6 +802,24 @@ function toCloudModelConfig(runtimeConfig: RuntimeConfig): CloudModelConfig | un
     baseUrl: runtimeConfig.baseUrl,
     model: runtimeConfig.model
   };
+}
+
+function createRuntimeProvider(
+  runtimeConfig: RuntimeConfig
+): OpenAICompatibleRuntimeClient | OllamaRuntimeClient {
+  return runtimeConfig.provider === "qyuanai" && runtimeConfig.apiKey && runtimeConfig.baseUrl
+    ? new OpenAICompatibleRuntimeClient({
+        apiKey: runtimeConfig.apiKey,
+        baseUrl: runtimeConfig.baseUrl,
+        model: runtimeConfig.model,
+        timeoutMs: 20_000
+      })
+    : new OllamaRuntimeClient({
+        model: runtimeConfig.model,
+        timeoutMs: 120_000,
+        maxOutputTokens: 768,
+        keepAlive: "10m"
+      });
 }
 
 function renderSelfModelDigestForPrompt(digest: {
@@ -679,6 +854,16 @@ function renderSelfModelDigestForPrompt(digest: {
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+function renderProjectionForPrompt(
+  projection: ReturnType<typeof buildCurrentProjection> | undefined
+): string {
+  if (!projection || projection.facets.length === 0) {
+    return "- No current projection yet.";
+  }
+
+  return projection.facets.map((facet) => `- ${facet.label}: ${facet.summary}`).join("\n");
 }
 
 async function generatePriorSkillOutputs(
@@ -1694,6 +1879,19 @@ function readJson(req: import("node:http").IncomingMessage): Promise<unknown> {
 }
 
 const port = Number(process.env.PORT ?? 4173);
-server.listen(port, () => {
+server.listen(port, "127.0.0.1", () => {
+  nightlyTrainingScheduler.start();
   console.log(`xiaoxian AI local web app listening on http://127.0.0.1:${port}`);
 });
+
+let shutdownStarted = false;
+async function shutdownLocalServices(): Promise<void> {
+  if (shutdownStarted) return;
+  shutdownStarted = true;
+  nightlyTrainingScheduler.stop();
+  await personalizationWorker.shutdown();
+  server.close();
+}
+
+process.once("SIGINT", () => void shutdownLocalServices());
+process.once("SIGTERM", () => void shutdownLocalServices());

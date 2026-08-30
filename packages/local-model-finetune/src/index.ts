@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 
 import type { TrainingExample } from "@98agent/training-data";
 import { FileSystemModelRegistry } from "@98agent/model-registry";
+import { resolveAdapterLoadPath } from "./personalization.js";
 
 export interface TrainingWindowConfig {
   startHourLocal: number;
@@ -59,6 +60,16 @@ export interface FineTuneRunSummary {
   elapsedSeconds?: number;
   bootstrapSeconds?: number;
   preparedModelPath?: string;
+  activatedCheckpointId?: string;
+  validationStatus?: "passed" | "failed";
+  validationHintCount?: number;
+  validationReason?: string;
+  reason?: string;
+}
+
+export interface PersonalizationCheckpointValidation {
+  status: "passed" | "failed";
+  hintCount: number;
   reason?: string;
 }
 
@@ -91,6 +102,9 @@ export interface TrainingControlConfig extends FineTuneRuntimeConfig {
   trainingProvider: "mlx";
 }
 
+export * from "./personalization.js";
+export * from "./scheduler.js";
+
 export function resolveTrainingModelCandidates(model: string): string[] {
   const normalized = model.trim();
   if (!normalized) return [];
@@ -119,12 +133,28 @@ export function buildDefaultTrainingControlConfig(): TrainingControlConfig {
     optimizer: "adamw",
     maskPrompt: true,
     gradCheckpoint: true,
-    enabled: true,
+    enabled: isDefaultMlxTrainingPlatformSupported(),
     window: {
       startHourLocal: 1,
       endHourLocal: 6
     }
   };
+}
+
+export function isDefaultMlxTrainingPlatformSupported(
+  platform: NodeJS.Platform = process.platform,
+  arch: string = process.arch
+): boolean {
+  return platform === "darwin" && arch === "arm64";
+}
+
+export function resolveDefaultTrainingPythonBin(
+  rootDir: string,
+  platform: NodeJS.Platform = process.platform
+): string {
+  return platform === "win32"
+    ? join(rootDir, ".venv", "Scripts", "python.exe")
+    : join(rootDir, ".venv", "bin", "python");
 }
 
 export async function loadTrainingControlConfig(
@@ -286,6 +316,114 @@ export function estimateFastTuneIters(args: {
   return Math.min(Math.max(floor, 24), 48);
 }
 
+export function assessPersonalizationHints(hints: unknown): PersonalizationCheckpointValidation {
+  if (!Array.isArray(hints)) {
+    return { status: "failed", hintCount: 0, reason: "Validation output did not contain a hint list." };
+  }
+
+  const usable = [
+    ...new Set(
+      hints
+        .filter((hint): hint is string => typeof hint === "string")
+        .map((hint) => hint.trim())
+        .filter(
+          (hint) =>
+            hint.length >= 4 &&
+            hint.length <= 400 &&
+            /[\p{L}\p{N}]/u.test(hint) &&
+            !/^(.)\1{5,}$/u.test(hint)
+        )
+    )
+  ];
+
+  if (usable.length < 2) {
+    return {
+      status: "failed",
+      hintCount: usable.length,
+      reason: "The trained adapter did not produce at least two distinct usable hints."
+    };
+  }
+
+  return { status: "passed", hintCount: usable.length };
+}
+
+export async function validatePersonalizationCheckpoint(args: {
+  rootDir: string;
+  baseModel: string;
+  adapterPath: string;
+  pythonBin?: string;
+  timeoutMs?: number;
+}): Promise<PersonalizationCheckpointValidation> {
+  const pythonBin = args.pythonBin ?? resolveDefaultTrainingPythonBin(args.rootDir);
+  const scriptPath = join(
+    args.rootDir,
+    "packages",
+    "local-model-finetune",
+    "scripts",
+    "extract_turn_context.py"
+  );
+  const payload = {
+    userMessage: "I need a practical two-week income plan that preserves autonomy.",
+    projectionText: "The user values autonomy, practical outcomes, and bounded risk.",
+    selfModelDigestText: "Use only the explicit validation context."
+  };
+
+  try {
+    const stdout = await new Promise<string>((resolve, reject) => {
+      const child = spawn(
+        pythonBin,
+        [
+          scriptPath,
+          "--model",
+          args.baseModel,
+          "--adapter-path",
+          args.adapterPath,
+          "--max-tokens",
+          "320"
+        ],
+        { stdio: ["pipe", "pipe", "pipe"] }
+      );
+      let output = "";
+      let errorOutput = "";
+      const timer = setTimeout(() => {
+        child.kill("SIGKILL");
+        reject(new Error("Personalization checkpoint validation timed out."));
+      }, args.timeoutMs ?? 120_000);
+      timer.unref();
+      child.stdout.on("data", (chunk) => {
+        output += String(chunk);
+      });
+      child.stderr.on("data", (chunk) => {
+        errorOutput = `${errorOutput}${String(chunk)}`.slice(-8_000);
+      });
+      child.on("error", (error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+      child.on("exit", (code) => {
+        clearTimeout(timer);
+        if (code !== 0) {
+          reject(
+            new Error(errorOutput.trim() || `Checkpoint validation exited with code ${String(code)}.`)
+          );
+          return;
+        }
+        resolve(output.trim());
+      });
+      child.stdin.write(JSON.stringify(payload));
+      child.stdin.end();
+    });
+    const parsed = JSON.parse(stdout) as { turnContextHints?: unknown };
+    return assessPersonalizationHints(parsed.turnContextHints);
+  } catch (error) {
+    return {
+      status: "failed",
+      hintCount: 0,
+      reason: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
 export async function runFastFineTune(args: {
   rootDir: string;
   plan: FineTunePlan;
@@ -293,6 +431,7 @@ export async function runFastFineTune(args: {
   exampleCount: number;
   respectWindow?: boolean;
   now?: Date;
+  pythonBin?: string;
 }): Promise<FineTuneRunSummary> {
   if (!args.plan.enabled) {
     return {
@@ -311,12 +450,14 @@ export async function runFastFineTune(args: {
 
   await mkdir(args.plan.runDir, { recursive: true });
   const scriptPath = join(args.rootDir, "packages", "local-model-finetune", "scripts", "run_mlx_lora.py");
+  const pythonBin = args.pythonBin ?? resolveDefaultTrainingPythonBin(args.rootDir);
   const preparationStatus = await getTrainingModelPreparationStatus({
     scriptPath,
     baseModel: args.plan.baseModel,
     dataDir: args.plan.datasetDir,
     runDir: args.plan.runDir,
-    maxDurationSeconds: args.plan.maxDurationSeconds
+    maxDurationSeconds: args.plan.maxDurationSeconds,
+    pythonBin
   });
   if (!preparationStatus.prepared || !preparationStatus.preparedModelPath) {
     return {
@@ -332,7 +473,8 @@ export async function runFastFineTune(args: {
     baseModel: preparationStatus.checkedModel ?? args.plan.baseModel,
     dataDir: args.plan.datasetDir,
     runDir: args.plan.runDir,
-    maxDurationSeconds: args.plan.maxDurationSeconds
+    maxDurationSeconds: args.plan.maxDurationSeconds,
+    pythonBin
   });
   const remainingSeconds = Math.max(
     0,
@@ -356,7 +498,7 @@ export async function runFastFineTune(args: {
 
   const result = await new Promise<FineTuneRunSummary>((resolve, reject) => {
     const child = spawn(
-      "python3",
+      pythonBin,
       [
         scriptPath,
         "--model",
@@ -420,8 +562,14 @@ export async function runFastFineTune(args: {
   });
 
   if (result.adapterPath) {
+    const checkpointId = crypto.randomUUID();
+    const checkpointNotes =
+      `MLX LoRA run ${args.plan.runId} finished with status ${result.status}. ` +
+      `Budget ${args.plan.maxDurationSeconds}s with ${result.bootstrapSeconds ?? 0}s spent preparing the model, ` +
+      `${iters} iterations, ` +
+      `${args.plan.trainingArgs.numLayers} layers, batch ${args.plan.trainingArgs.batchSize} x accum ${args.plan.trainingArgs.gradAccumulationSteps}.`;
     await args.registry.add({
-      id: crypto.randomUUID(),
+      id: checkpointId,
       baseModel: args.plan.baseModel,
       adapterPath: result.adapterPath,
       createdAt: new Date().toISOString(),
@@ -429,12 +577,30 @@ export async function runFastFineTune(args: {
       status: "ready",
       isolationMode: "adapter_only",
       trainingDataScope: "profile_cognition_and_skill_priors",
-      notes:
-        `MLX LoRA run ${args.plan.runId} finished with status ${result.status}. ` +
-        `Budget ${args.plan.maxDurationSeconds}s with ${result.bootstrapSeconds ?? 0}s spent preparing the model, ` +
-        `${iters} iterations, ` +
-        `${args.plan.trainingArgs.numLayers} layers, batch ${args.plan.trainingArgs.batchSize} x accum ${args.plan.trainingArgs.gradAccumulationSteps}.`
+      notes: checkpointNotes
     });
+    if (result.status === "completed") {
+      const validation = await validatePersonalizationCheckpoint({
+        rootDir: args.rootDir,
+        baseModel: args.plan.baseModel,
+        adapterPath: resolveAdapterLoadPath(result.adapterPath),
+        pythonBin,
+        timeoutMs: 120_000
+      });
+      result.validationStatus = validation.status;
+      result.validationHintCount = validation.hintCount;
+      result.validationReason = validation.reason;
+      if (validation.status === "passed") {
+        await args.registry.activate(checkpointId);
+        result.activatedCheckpointId = checkpointId;
+      } else {
+        await args.registry.updateStatus(
+          checkpointId,
+          "failed",
+          `${checkpointNotes} Validation failed: ${validation.reason ?? "unknown reason"}`
+        );
+      }
+    }
   }
 
   return result;
@@ -446,6 +612,7 @@ export async function getTrainingModelPreparationStatus(args: {
   dataDir: string;
   runDir: string;
   maxDurationSeconds: number;
+  pythonBin?: string;
 }): Promise<TrainingModelPreparationStatus> {
   const candidateStatuses = await getTrainingModelCandidateStatuses(args);
   const preparedCandidate = candidateStatuses.find((candidate) => candidate.prepared);
@@ -468,6 +635,7 @@ export async function getTrainingModelCandidateStatuses(args: {
   dataDir: string;
   runDir: string;
   maxDurationSeconds: number;
+  pythonBin?: string;
 }): Promise<TrainingModelCandidateStatus[]> {
   const candidates = resolveTrainingModelCandidates(args.baseModel);
   return Promise.all(
@@ -487,6 +655,7 @@ export async function prepareTrainingModel(args: {
   dataDir: string;
   runDir: string;
   maxDurationSeconds: number;
+  pythonBin?: string;
 }): Promise<PreparedFineTuneModel> {
   const currentStatus = await getTrainingModelPreparationStatus(args);
   if (currentStatus.prepared && currentStatus.preparedModelPath) {
@@ -504,10 +673,11 @@ async function prepareFastFineTuneModel(args: {
   dataDir: string;
   runDir: string;
   maxDurationSeconds: number;
+  pythonBin?: string;
 }): Promise<PreparedFineTuneModel> {
   return new Promise<PreparedFineTuneModel>((resolve, reject) => {
     const child = spawn(
-      "python3",
+      args.pythonBin ?? "python3",
       [
         args.scriptPath,
         "--prepare-only",
@@ -572,10 +742,11 @@ async function inspectTrainingModelCandidate(args: {
   dataDir: string;
   runDir: string;
   maxDurationSeconds: number;
+  pythonBin?: string;
 }): Promise<TrainingModelPreparationStatus> {
   return new Promise<TrainingModelPreparationStatus>((resolve, reject) => {
     const child = spawn(
-      "python3",
+      args.pythonBin ?? "python3",
       [
         args.scriptPath,
         "--check-only",

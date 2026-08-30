@@ -6,10 +6,19 @@
 
 这个仓库当前聚焦于：
 
-- mac 优先的本地版本
+- macOS 与 Windows 都能运行的本地应用
 - 本地记忆与本地持续训练
 - 云端大模型负责对话、指令返回和工具处理
-- 本地小模型负责长期整理、夜间微调和隐私保护
+- 本地小模型负责回复前的个性化提示、长期整理、夜间微调和隐私保护
+
+当前平台支持边界：
+
+| 能力 | macOS Apple Silicon | Windows 10/11 |
+| --- | --- | --- |
+| Web 应用、对话、记忆和日志 | 支持 | 支持 |
+| 云端兼容模型 | 支持 | 支持 |
+| Ollama 本地对话 | 支持 | 支持 |
+| VibeThinker + MLX 本地微调 | 已验证 | 尚未验证，默认关闭 |
 
 ## 项目截图
 
@@ -81,10 +90,13 @@ MBTI、八字、紫微、星盘、易经等内容，在这里不作为命运判�
 
 小模型更适合：
 
+- 在云端大模型回复前提取与当前问题有关的个性化提示
 - 在本地长期持有用户自己的训练素材
 - 夜间或休息时段持续微调
 - 对每天完整经历进行整理与归档
 - 在不泄露隐私的前提下慢慢形成“更像你自己的模型”
+
+本地个性化模型使用轻量常驻进程：活跃对话期间复用已经加载的模型和适配器，空闲 10 分钟后自动休眠。每一轮仍显式传入当前消息和自我模型摘要，不在进程内偷偷积累不可检查的用户画像。
 
 ### 为什么这种组合更合理
 
@@ -110,6 +122,10 @@ MBTI、八字、紫微、星盘、易经等内容，在这里不作为命运判�
 - 七个欲望方向展示
 - 陪伴状态展示
 - 本地认知日志与夜间微调流程
+- 休息时间窗口内的自动训练调度
+- 本地个性化模型常驻、健康检查、崩溃重启与适配器切换
+- 新适配器激活前的本地冒烟验证与失败回滚
+- 个性化赚钱建议与通用 AI 基线的同题对照评估
 - 低权重先验技能整合
 - 独立项目介绍页
 
@@ -122,6 +138,7 @@ MBTI、八字、紫微、星盘、易经等内容，在这里不作为命运判�
 - `packages/local-model-finetune`：本地微调流程
 - `packages/prior-engines`：先验技能与统一翻译层
 - `site/landing`：项目介绍页
+- `docs/setup`：macOS 与 Windows 安装指南
 - `ops/caddy`：站点部署草案
 
 ## 隐私与开源边界
@@ -138,6 +155,8 @@ MBTI、八字、紫微、星盘、易经等内容，在这里不作为命运判�
 - 训练输出 adapter / checkpoint
 - 本地 API key / base URL 配置
 
+赚钱任务中的研究、比较和草稿可以由 Agent 主动完成；发布内容、联系他人、购买、开户、转账等外部动作必须先获得用户明确授权。系统不能只凭文本声称已经赚到钱，必须有真实工具结果或收款记录作为证据。
+
 ## 本地开发
 
 ```bash
@@ -151,15 +170,26 @@ npm run dev
 http://127.0.0.1:4173
 ```
 
-更完整、可逐步复制的 mac 安装说明见：
+更完整、可逐步复制的安装说明：
 
 - [macOS 安装说明](docs/setup/macos-local-install.md)
+- [Windows 安装说明](docs/setup/windows-local-install.md)
+
+Windows 最短启动路径：
+
+```powershell
+git clone https://github.com/dentes9988/xiaoxian-ai.git
+cd xiaoxian-ai
+npm run setup:windows
+npm run check:windows
+npm run dev
+```
 
 如果你想启用本地小模型训练，仓库默认推荐：
 
 - `mlx-community/VibeThinker-3B-4bit`
 
-原因很简单：它已经是当前项目默认训练基座模型，适合 Apple Silicon + MLX 路线，体积和本地可用性也更平衡。
+原因很简单：它已经是当前项目默认训练基座模型，适合 Apple Silicon + MLX 路线，体积和本地可用性也更平衡。Windows 当前可以运行应用，但这条训练路径尚未完成实机验证，因此不会假装已经具备训练平台等价性。
 
 ## 验证
 
@@ -176,6 +206,8 @@ The core architectural idea is:
 
 - a stronger online model handles live conversation, instruction return, memory extraction, and tool use
 - a smaller local model handles long-term organization, local fine-tuning, and private user-specific adaptation
+
+During an active conversation, a resident local personalization worker prepares turn-specific hints before the stronger model replies. It sleeps after ten idle minutes, and nightly local training is scheduled inside the configured rest window. The application runs on macOS and Windows; the VibeThinker + MLX training path is currently verified only on Apple Silicon.
 
 We believe this is a more sustainable human-AI symbiosis pattern: strong shared intelligence for execution, private local intelligence for personal continuity.
 

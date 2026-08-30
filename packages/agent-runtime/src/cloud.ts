@@ -4,6 +4,7 @@ import {
   type RuntimeMessage,
   type RuntimeTurnResult
 } from "./schemas.js";
+import { extractJsonPayload } from "./json.js";
 
 export interface OpenAICompatibleRuntimeOptions {
   apiKey: string;
@@ -61,23 +62,6 @@ function normalizeCloudTurnResult(content: string): RuntimeTurnResult {
     reply: sanitizeReply(reply),
     candidateMemories
   });
-}
-
-function extractJsonPayload(content: string): unknown {
-  try {
-    return JSON.parse(content);
-  } catch {
-    const start = content.indexOf("{");
-    const end = content.lastIndexOf("}");
-    if (start >= 0 && end > start) {
-      try {
-        return JSON.parse(content.slice(start, end + 1));
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  }
 }
 
 function sanitizeReply(reply: string): string {

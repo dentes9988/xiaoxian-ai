@@ -12,6 +12,8 @@ The first implementation should focus the broad vision into one proof point: sel
 - Add a runtime contract where the strong online model returns both user-facing responses and structured candidate memory items for every interaction.
 - Add a daily cognition-log and local personal-model training loop that captures candidate-memory extraction, user confirmations, memory decisions, and training-data generation.
 - Add a task-help capability focused on short-term earning assistance, with explicit handling of tension between immediate cash flow and long-term direction.
+- Add a lightweight resident local-personalization path that keeps the local turn-personalization model warm during active use and lets it sleep after idle periods.
+- Add Windows installation and setup support to the user-facing documentation so the project is not limited to macOS-only instructions.
 
 ## Capabilities
 
@@ -29,4 +31,6 @@ None.
 - Affects the initial product architecture under `apps/web` and `packages/*` modules described in the design spec.
 - Introduces local storage, ingestion, memory, and model-management responsibilities that will shape the full repo structure.
 - Requires an explicit structured-output contract from the online model and a local fine-tuning pipeline for the personal model.
+- Introduces local process-lifecycle and resource-management decisions for the personalization layer, especially around warm caching, timeout, and idle sleep behavior.
+- Requires cross-platform installation documentation and dependency guidance for both macOS and Windows users.
 - Creates the baseline OpenSpec contract for future implementation and later extensions such as growth guidance, emotional-expression routing, and external channels.

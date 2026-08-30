@@ -103,6 +103,7 @@ const state = {
   health: null,
   runtimeConfig: null,
   trainingModelStatus: null,
+  submitting: false,
   nextMessageId: 1,
   chatMessages: [],
   chatHistory: {
@@ -115,6 +116,11 @@ const state = {
   onboarding: {
     active: null,
     autoStarted: false
+  },
+  composerStatus: {
+    visible: false,
+    tone: "busy",
+    text: ""
   }
 };
 
@@ -152,6 +158,21 @@ function formatBytes(value) {
 
 function setWorkspaceStatus(text) {
   byId("workspaceStatus").textContent = text;
+}
+
+function setComposerStatus(text = "", tone = "busy") {
+  state.composerStatus = {
+    visible: Boolean(text),
+    tone,
+    text
+  };
+
+  const root = byId("composerStatus");
+  const textNode = byId("composerStatusText");
+  if (!root || !textNode) return;
+
+  root.className = text ? `composer-status ${tone}` : "composer-status hidden";
+  textNode.textContent = text;
 }
 
 function setMood(mood, reason) {
@@ -305,7 +326,10 @@ function hydrateSettings() {
   byId("runtimeProvider").value = runtime.provider || "qyuanai";
   byId("runtimeModel").value = runtime.model || "";
   byId("runtimeBaseUrl").value = runtime.baseUrl || "";
-  byId("runtimeApiKey").value = runtime.apiKey || "";
+  byId("runtimeApiKey").value = "";
+  byId("runtimeApiKey").placeholder = runtime.apiKeyConfigured
+    ? "已配置，留空保持不变"
+    : "sk-...";
 
   byId("trainingModel").value = training.model || "";
   byId("maxDurationSeconds").value = training.maxDurationSeconds || 300;
@@ -536,12 +560,14 @@ async function generatePriors(silent = false) {
 async function saveRuntimeConfig() {
   try {
     setWorkspaceStatus("正在保存模型配置...");
-    await postJson("/api/runtime/config", {
+    const apiKey = byId("runtimeApiKey").value.trim();
+    const payload = {
       provider: byId("runtimeProvider").value,
       model: byId("runtimeModel").value.trim(),
-      baseUrl: byId("runtimeBaseUrl").value.trim(),
-      apiKey: byId("runtimeApiKey").value.trim()
-    });
+      baseUrl: byId("runtimeBaseUrl").value.trim()
+    };
+    if (apiKey) payload.apiKey = apiKey;
+    await postJson("/api/runtime/config", payload);
     await refreshModel();
     setWorkspaceStatus("模型配置已保存");
   } catch (error) {
@@ -609,6 +635,10 @@ async function submitUserMessage(messageId, { retry = false } = {}) {
   const currentMessage = getChatMessage(messageId);
   if (!currentMessage || currentMessage.role !== "user") return;
   if (currentMessage.status === "sending" || currentMessage.status === "retrying") return;
+  if (state.submitting) return;
+
+  state.submitting = true;
+  byId("sendMessage").disabled = true;
 
   updateChatMessage(messageId, {
     status: retry ? "retrying" : "sending",
@@ -617,6 +647,7 @@ async function submitUserMessage(messageId, { retry = false } = {}) {
 
   const message = currentMessage.content;
   try {
+    setComposerStatus(retry ? "已收到，正在重新处理这条消息..." : "已收到，正在处理中...", "busy");
     if (state.onboarding.active) {
       const consumed = await handleOnboardingReply(message);
       if (consumed) {
@@ -624,6 +655,7 @@ async function submitUserMessage(messageId, { retry = false } = {}) {
           status: "sent",
           errorMessage: ""
         });
+        setComposerStatus("", "busy");
         return;
       }
     }
@@ -636,6 +668,7 @@ async function submitUserMessage(messageId, { retry = false } = {}) {
       status: "sent",
       errorMessage: ""
     });
+    setComposerStatus("正在整理回复...", "busy");
     pushAssistantMessage(payload.reply);
 
     const [mood, reason] = classifyReplyMood(payload.reply || "");
@@ -643,16 +676,22 @@ async function submitUserMessage(messageId, { retry = false } = {}) {
 
     await refreshModel();
     setWorkspaceStatus("已同步最新对话");
+    setComposerStatus("", "busy");
   } catch (error) {
     updateChatMessage(messageId, {
       status: "failed",
       errorMessage: error instanceof Error ? error.message : String(error)
     });
+    setComposerStatus("发送失败，请重试。", "error");
     handleError(error, retry ? "重发失败" : "发送失败");
+  } finally {
+    state.submitting = false;
+    byId("sendMessage").disabled = false;
   }
 }
 
 async function sendMessage() {
+  if (state.submitting) return;
   const input = byId("message");
   const message = input.value.trim();
   if (!message) return;
@@ -663,6 +702,7 @@ async function sendMessage() {
 }
 
 async function retryMessage(messageId) {
+  if (state.submitting) return;
   const message = getChatMessage(messageId);
   if (!message || message.role !== "user" || message.status !== "failed") return;
 

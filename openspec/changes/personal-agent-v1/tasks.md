@@ -27,13 +27,16 @@
 - [x] 4.3 Implement the daily cognition log writer for raw interaction data, candidate-memory outputs, system decisions, confirmations, and resulting updates
 - [ ] 4.4 Implement layered retention controls for raw logs, candidate and decision logs, and durable memory assets
 - [ ] 4.5 Feed the current projection and relevant stable items into runtime task handling without loading the full memory archive
+- [x] 4.6 Add a local turn-personalization step that runs before the strong online model and supplies per-turn personalization hints without directly generating the user-facing reply
+- [x] 4.7 Replace per-turn cold starts with a lightweight resident personalization worker and enforce automatic sleep after 10 minutes of inactivity
+- [x] 4.8 Add health-check, restart, and adapter-reload handling for the resident personalization worker
 
 ## 5. Earning-guided task help
 
 - [x] 5.1 Implement the earning-assistance task flow for near-term income questions
 - [x] 5.2 Make the earning flow prioritize short-term cash-flow improvement by default while surfacing long-term-direction tradeoffs
 - [x] 5.3 Ensure earning responses include concrete next actions rather than only reflective analysis
-- [ ] 5.4 Build the comparison harness for personalized earning help versus a generic AI baseline
+- [x] 5.4 Build the comparison harness for personalized earning help versus a generic AI baseline
 
 ## 6. Memory review and user control surfaces
 
@@ -44,13 +47,21 @@
 ## 7. Local training loop
 
 - [x] 7.1 Implement training-data generation from daily cognition logs, confirmations, rejections, and resulting memory decisions
-- [ ] 7.2 Implement nightly local fine-tuning orchestration with rest-window scheduling
+- [x] 7.2 Implement nightly local fine-tuning orchestration with rest-window scheduling
 - [x] 7.3 Implement checkpoint registration, activation, and rollback in the model registry
 - [x] 7.4 Ensure the local training flow can be disabled without breaking the live assistant runtime
+- [x] 7.5 Define how newly trained adapters become visible to the resident personalization worker without mixing old and new loaded state
+- [x] 7.6 Gate automatic adapter activation on a local smoke evaluation and preserve the previous active adapter when validation fails
 
 ## 8. Safety and evaluation
 
 - [ ] 8.1 Add schema and storage tests for memory items, projections, trajectories, and log retention layers
 - [ ] 8.2 Add safety tests for confirmation gates, evidence ordering, and conflict preservation
 - [ ] 8.3 Add pipeline tests that cover intake -> candidate-memory extraction -> confirmation -> durable self-model updates
-- [ ] 8.4 Add evaluation scenarios for short-term earning help and compare personalized output against a generic baseline on executability and personal fit
+- [x] 8.4 Add evaluation scenarios for short-term earning help and compare personalized output against a generic baseline on executability and personal fit
+
+## 9. Platform and documentation support
+
+- [x] 9.1 Add Windows installation and setup instructions with explicit notes about supported runtime and local-training depth
+- [x] 9.2 Update the public README so macOS and Windows setup paths are both visible and copyable
+- [x] 9.3 Update the public project page so cross-platform support and local privacy architecture are described consistently

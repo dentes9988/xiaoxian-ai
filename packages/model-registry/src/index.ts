@@ -41,9 +41,27 @@ export class FileSystemModelRegistry {
 
   async activate(id: string): Promise<void> {
     const records = await this.load();
+    const target = records.find((record) => record.id === id);
+    if (!target) throw new Error(`Model checkpoint not found: ${id}`);
+    if (target.status === "failed") {
+      throw new Error(`Failed model checkpoint cannot be activated: ${id}`);
+    }
     for (const record of records) {
       record.status = record.id === id ? "active" : record.status === "active" ? "ready" : record.status;
     }
+    await this.save(records);
+  }
+
+  async updateStatus(
+    id: string,
+    status: ModelCheckpointRecord["status"],
+    notes?: string
+  ): Promise<void> {
+    const records = await this.load();
+    const record = records.find((candidate) => candidate.id === id);
+    if (!record) throw new Error(`Model checkpoint not found: ${id}`);
+    record.status = status;
+    if (notes) record.notes = notes;
     await this.save(records);
   }
 
