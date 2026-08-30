@@ -93,6 +93,12 @@ Why:
 - Earning decisions are recurring, concrete, and easy to compare against a baseline.
 - This keeps the daily product behavior grounded in utility instead of novelty.
 
+### Decision: Separate earning proposals, authorization, execution, and evidence
+
+The runtime may propose a concrete external earning action, but it does not execute that proposal directly. Publishing an offer, contacting another person, purchasing, opening an account, or moving money is stored as a local action record with `pending_approval` status. A user decision can move it to `approved` or `rejected`; only a narrowly scoped executor plus matching tool evidence can move an approved action to `completed`.
+
+This separation prevents persuasive model text from being mistaken for a real-world result. Projected revenue is not revenue, an approved action is not an executed action, and an executed action is not a verified payment. The local record keeps those states distinct.
+
 Alternatives considered:
 - Growth guidance as the wedge: valuable but less immediate for daily proof.
 - Emotional-expression routing as the wedge: high value, but more trust-sensitive and less directly measurable.

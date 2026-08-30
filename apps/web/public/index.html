@@ -685,6 +685,80 @@
         color: var(--red);
       }
 
+      .earning-actions {
+        display: grid;
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .earning-action {
+        padding-top: 12px;
+        border-top: 1px solid rgba(45, 109, 246, 0.2);
+      }
+
+      .earning-action-head,
+      .earning-action-buttons {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .earning-action-head strong {
+        line-height: 1.4;
+      }
+
+      .earning-action-status,
+      .earning-action-kind {
+        color: var(--muted);
+        font-size: 0.76rem;
+      }
+
+      .earning-action-status.status-pending_approval {
+        color: var(--blue-strong);
+        font-weight: 700;
+      }
+
+      .earning-action-status.status-approved,
+      .earning-action-status.status-completed {
+        color: var(--green);
+      }
+
+      .earning-action-status.status-rejected,
+      .earning-action-status.status-failed {
+        color: var(--red);
+      }
+
+      .earning-action-kind {
+        margin-top: 4px;
+      }
+
+      .earning-action p {
+        margin: 8px 0 0;
+        line-height: 1.5;
+      }
+
+      .earning-action-metric,
+      .earning-action-cost {
+        color: var(--muted);
+        font-size: 0.84rem;
+      }
+
+      .earning-action-buttons {
+        justify-content: flex-start;
+        margin-top: 10px;
+      }
+
+      .earning-action-buttons button {
+        padding: 0.55rem 0.82rem;
+      }
+
+      button:disabled {
+        cursor: wait;
+        opacity: 0.6;
+        transform: none;
+      }
+
       .chat-actions {
         display: flex;
         align-items: center;

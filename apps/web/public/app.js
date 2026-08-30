@@ -103,6 +103,7 @@ const state = {
   health: null,
   runtimeConfig: null,
   trainingModelStatus: null,
+  earningActions: [],
   submitting: false,
   nextMessageId: 1,
   chatMessages: [],
@@ -208,17 +209,28 @@ async function postJson(url, body) {
 async function refreshModel() {
   setWorkspaceStatus("正在同步...");
 
-  const [selfModelResponse, healthResponse, runtimeConfigResponse, trainingModelStatusResponse] = await Promise.all([
+  const [
+    selfModelResponse,
+    healthResponse,
+    runtimeConfigResponse,
+    trainingModelStatusResponse,
+    earningActionsResponse
+  ] = await Promise.all([
     fetch("/api/self-model"),
     fetch("/api/health"),
     fetch("/api/runtime/config"),
-    fetch("/api/train/model-status")
+    fetch("/api/train/model-status"),
+    fetch("/api/earning/actions")
   ]);
 
   state.selfModel = await selfModelResponse.json();
   state.health = await healthResponse.json();
   state.runtimeConfig = await runtimeConfigResponse.json();
   state.trainingModelStatus = await trainingModelStatusResponse.json();
+  const earningActionPayload = await earningActionsResponse.json();
+  state.earningActions = Array.isArray(earningActionPayload.actions)
+    ? earningActionPayload.actions
+    : [];
 
   byId("modelState").textContent = JSON.stringify(
     {
@@ -382,6 +394,7 @@ function renderChatLog(options = {}) {
           <div class="chat-message ${message.role} ${message.status ? `status-${message.status}` : ""}">
             <div class="chat-role">${message.role === "user" ? "你" : "xiaoxian AI"}</div>
             <div class="chat-content">${escapeHtml(message.content)}</div>
+            ${message.role === "assistant" ? renderEarningActions(message) : ""}
             ${
               message.role === "user" && message.status === "failed"
                 ? `<div class="chat-meta error">${escapeHtml(message.errorMessage || "发送失败，可重新发送。")}</div>`
@@ -435,17 +448,89 @@ function renderHistoryBanner() {
   return "";
 }
 
-function pushAssistantMessage(content, render = true) {
+function pushAssistantMessage(content, render = true, options = {}) {
   const last = state.chatMessages.at(-1);
   if (last?.role === "assistant" && last.content === content) return;
 
   state.chatMessages.push({
-    id: createMessageId(),
+    id: options.id || createMessageId(),
+    sourceLogId: options.sourceLogId,
     role: "assistant",
     content,
     timestamp: new Date().toISOString()
   });
   if (render) renderChatLog();
+}
+
+function renderEarningActions(message) {
+  const sourceLogId =
+    message.sourceLogId ||
+    (typeof message.id === "string" && message.id.endsWith(":assistant")
+      ? message.id.slice(0, -":assistant".length)
+      : "");
+  if (!sourceLogId) return "";
+
+  const actions = state.earningActions.filter((action) => action.sourceLogId === sourceLogId);
+  if (!actions.length) return "";
+
+  const kindLabels = {
+    publish_offer: "发布服务",
+    contact_prospect: "联系潜在客户",
+    purchase: "购买",
+    open_account: "开户",
+    move_money: "转账"
+  };
+  const statusLabels = {
+    pending_approval: "待你授权",
+    approved: "已授权，等待工具执行",
+    rejected: "已拒绝",
+    completed: "已有工具证据，已完成",
+    failed: "执行失败"
+  };
+
+  return `
+    <div class="earning-actions">
+      ${actions
+        .map(
+          (action) => `
+            <div class="earning-action">
+              <div class="earning-action-head">
+                <strong>${escapeHtml(action.title)}</strong>
+                <span class="earning-action-status status-${escapeHtml(action.status)}">
+                  ${escapeHtml(statusLabels[action.status] || action.status)}
+                </span>
+              </div>
+              <div class="earning-action-kind">${escapeHtml(kindLabels[action.kind] || action.kind)}</div>
+              <p>${escapeHtml(action.description)}</p>
+              <p class="earning-action-metric">验证标准：${escapeHtml(action.successMetric)}</p>
+              <p class="earning-action-cost">预计成本：¥${escapeHtml(action.estimatedCostCny ?? 0)}</p>
+              ${
+                action.status === "pending_approval"
+                  ? `
+                    <div class="earning-action-buttons">
+                      <button
+                        type="button"
+                        data-action="decide-earning-action"
+                        data-action-id="${escapeHtml(action.id)}"
+                        data-decision="approved"
+                      >授权</button>
+                      <button
+                        type="button"
+                        class="secondary"
+                        data-action="decide-earning-action"
+                        data-action-id="${escapeHtml(action.id)}"
+                        data-decision="rejected"
+                      >拒绝</button>
+                    </div>
+                  `
+                  : ""
+              }
+            </div>
+          `
+        )
+        .join("")}
+    </div>
+  `;
 }
 
 function pushUserMessage(content) {
@@ -669,7 +754,15 @@ async function submitUserMessage(messageId, { retry = false } = {}) {
       errorMessage: ""
     });
     setComposerStatus("正在整理回复...", "busy");
-    pushAssistantMessage(payload.reply);
+    if (Array.isArray(payload.earningActions) && payload.earningActions.length > 0) {
+      const byActionId = new Map(state.earningActions.map((action) => [action.id, action]));
+      for (const action of payload.earningActions) byActionId.set(action.id, action);
+      state.earningActions = [...byActionId.values()];
+    }
+    pushAssistantMessage(payload.reply, true, {
+      id: payload.logEntryId ? `${payload.logEntryId}:assistant` : undefined,
+      sourceLogId: payload.logEntryId
+    });
 
     const [mood, reason] = classifyReplyMood(payload.reply || "");
     setMood(mood, reason);
@@ -709,13 +802,35 @@ async function retryMessage(messageId) {
   await submitUserMessage(messageId, { retry: true });
 }
 
+async function decideEarningAction(actionId, decision) {
+  if (decision !== "approved" && decision !== "rejected") return;
+  setComposerStatus(decision === "approved" ? "正在记录授权..." : "正在记录拒绝...", "busy");
+  await postJson(`/api/earning/actions/${encodeURIComponent(actionId)}/decision`, { decision });
+  await refreshModel();
+  setComposerStatus(
+    decision === "approved" ? "已授权；只有工具返回证据后才会标记完成。" : "已拒绝该动作。",
+    "busy"
+  );
+}
+
 function handleChatAction(event) {
-  const button = event.target.closest("[data-action='retry-message']");
+  const button = event.target.closest("[data-action]");
   if (!button) return;
 
-  const { messageId } = button.dataset;
-  if (!messageId) return;
-  retryMessage(messageId).catch((error) => handleError(error, "重发失败"));
+  if (button.dataset.action === "retry-message") {
+    const { messageId } = button.dataset;
+    if (!messageId) return;
+    retryMessage(messageId).catch((error) => handleError(error, "重发失败"));
+    return;
+  }
+
+  if (button.dataset.action === "decide-earning-action") {
+    const { actionId, decision } = button.dataset;
+    if (!actionId || !decision) return;
+    decideEarningAction(actionId, decision).catch((error) =>
+      handleError(error, "记录赚钱动作授权失败")
+    );
+  }
 }
 
 function handleComposerKeydown(event) {

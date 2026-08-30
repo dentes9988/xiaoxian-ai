@@ -12,6 +12,7 @@ The first implementation should focus the broad vision into one proof point: sel
 - Add a runtime contract where the strong online model returns both user-facing responses and structured candidate memory items for every interaction.
 - Add a daily cognition-log and local personal-model training loop that captures candidate-memory extraction, user confirmations, memory decisions, and training-data generation.
 - Add a task-help capability focused on short-term earning assistance, with explicit handling of tension between immediate cash flow and long-term direction.
+- Add a local approval queue for external earning actions, with matching tool evidence required before completion.
 - Add a lightweight resident local-personalization path that keeps the local turn-personalization model warm during active use and lets it sleep after idle periods.
 - Add Windows installation and setup support to the user-facing documentation so the project is not limited to macOS-only instructions.
 

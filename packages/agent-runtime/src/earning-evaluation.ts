@@ -115,6 +115,6 @@ export function buildGenericEarningSystemPrompt(): string {
     "Answer the user's earning question with practical near-term actions.",
     "Do not claim that an external action was completed unless a tool result proves it.",
     "Return strict JSON only with this exact shape:",
-    '{"reply":"string","candidateMemories":[]}'
+    '{"reply":"string","candidateMemories":[],"proposedActions":[]}'
   ].join("\n");
 }

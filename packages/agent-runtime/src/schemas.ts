@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { earningActionProposalSchema } from "./earning-actions.js";
+
 export const messageSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),
   content: z.string().min(1)
@@ -28,10 +30,10 @@ export const candidateMemorySchema = z.object({
 
 export const runtimeTurnResultSchema = z.object({
   reply: z.string().min(1),
-  candidateMemories: z.array(candidateMemorySchema)
+  candidateMemories: z.array(candidateMemorySchema),
+  proposedActions: z.array(earningActionProposalSchema).optional()
 });
 
 export type RuntimeMessage = z.infer<typeof messageSchema>;
 export type CandidateMemoryDraft = z.infer<typeof candidateMemorySchema>;
 export type RuntimeTurnResult = z.infer<typeof runtimeTurnResultSchema>;
-

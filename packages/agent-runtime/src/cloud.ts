@@ -5,6 +5,7 @@ import {
   type RuntimeTurnResult
 } from "./schemas.js";
 import { extractJsonPayload } from "./json.js";
+import { parseEarningActionProposals } from "./earning-actions.js";
 
 export interface OpenAICompatibleRuntimeOptions {
   apiKey: string;
@@ -60,7 +61,8 @@ function normalizeCloudTurnResult(content: string): RuntimeTurnResult {
 
   return runtimeTurnResultSchema.parse({
     reply: sanitizeReply(reply),
-    candidateMemories
+    candidateMemories,
+    proposedActions: deriveProposedActions(payload)
   });
 }
 
@@ -103,6 +105,12 @@ function deriveCandidateMemories(payload: unknown) {
     .map((item) => candidateMemorySchema.safeParse(item))
     .filter((result) => result.success)
     .map((result) => result.data);
+}
+
+function deriveProposedActions(payload: unknown) {
+  if (!payload || typeof payload !== "object") return [];
+  const record = payload as Record<string, unknown>;
+  return parseEarningActionProposals(record.proposedActions);
 }
 
 function decodeJsonString(value: string): string {

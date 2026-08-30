@@ -1,5 +1,6 @@
 import { runtimeTurnResultSchema, type RuntimeMessage, type RuntimeTurnResult } from "./schemas.js";
 import { extractJsonPayload } from "./json.js";
+import { parseEarningActionProposals } from "./earning-actions.js";
 
 export interface OllamaRuntimeOptions {
   baseUrl?: string;
@@ -67,7 +68,8 @@ function normalizeRuntimeTurnResult(content: string): RuntimeTurnResult {
 
   return runtimeTurnResultSchema.parse({
     reply: sanitizeReply(reply),
-    candidateMemories
+    candidateMemories,
+    proposedActions: parseEarningActionProposals(record.proposedActions)
   });
 }
 

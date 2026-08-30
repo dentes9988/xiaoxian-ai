@@ -27,7 +27,8 @@ describe("OllamaRuntimeClient", () => {
 
     expect(result).toEqual({
       reply: "Start with one paid test.",
-      candidateMemories: []
+      candidateMemories: [],
+      proposedActions: []
     });
     const request = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
     expect(request).toMatchObject({

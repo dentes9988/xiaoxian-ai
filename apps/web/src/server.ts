@@ -11,6 +11,7 @@ import {
   type MemoryItem
 } from "@98agent/memory-core";
 import {
+  FileSystemEarningActionStore,
   OllamaRuntimeClient,
   OpenAICompatibleRuntimeClient,
   runEarningComparison,
@@ -61,6 +62,7 @@ const priorSkillOutputsPath = join(dataRoot, "prior-skill-outputs.json");
 const trainingConfigPath = join(dataRoot, "training-config.json");
 const trainingSchedulerStatePath = join(dataRoot, "training-scheduler-state.json");
 const desireStatePath = join(dataRoot, "desire-state.json");
+const earningActionsPath = join(dataRoot, "earning-actions.json");
 const publicDir = fileURLToPath(new URL("../public", import.meta.url));
 const mingyuRoot = join(repoRoot, ".cache", "skills", "mingyu");
 const runtimeModel = process.env.OLLAMA_RUNTIME_MODEL ?? "gemma3:1b-it-qat";
@@ -69,6 +71,7 @@ const trainingEnabled = process.env.PERSONAL_MODEL_TRAINING_ENABLED !== "false";
 const trainingPythonBin = resolveDefaultTrainingPythonBin(repoRoot);
 const store = new FileSystemMemoryStore(dataDir, "default-user");
 const modelRegistry = new FileSystemModelRegistry(join(dataRoot, "model-registry.json"));
+const earningActionStore = new FileSystemEarningActionStore(earningActionsPath);
 const personalizationWorker = new ResidentPersonalizationWorker({
   rootDir: repoRoot,
   registry: modelRegistry,
@@ -328,6 +331,35 @@ const server = createServer(async (req, res) => {
     const beforeId = url.searchParams.get("beforeId") ?? undefined;
     const history = await store.listChatHistory({ limit, beforeId });
     sendJson(res, 200, history);
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/earning/actions") {
+    sendJson(res, 200, { actions: await earningActionStore.list() });
+    return;
+  }
+
+  const earningDecisionMatch = url.pathname.match(
+    /^\/api\/earning\/actions\/([^/]+)\/decision$/
+  );
+  if (req.method === "POST" && earningDecisionMatch) {
+    try {
+      const body = (await readJson(req)) as { decision?: unknown };
+      if (body.decision !== "approved" && body.decision !== "rejected") {
+        sendJson(res, 400, { error: "invalid_earning_action_decision" });
+        return;
+      }
+      const action = await earningActionStore.decide(
+        decodeURIComponent(earningDecisionMatch[1] ?? ""),
+        body.decision
+      );
+      sendJson(res, 200, { ok: true, action });
+    } catch (error) {
+      sendJson(res, 409, {
+        error: "earning_action_decision_failed",
+        detail: error instanceof Error ? error.message : String(error)
+      });
+    }
     return;
   }
 
@@ -599,6 +631,10 @@ const server = createServer(async (req, res) => {
         }
       ];
       await store.appendChatHistory(historyMessages);
+      const earningActions = await earningActionStore.addProposals(
+        runtimeTurn.result.proposedActions ?? [],
+        runtimeTurn.logEntry.id
+      );
       const updatedSnapshot = await store.getSnapshot();
       const refreshedPriorSkillOutputs = await loadPriorSkillOutputs(priorSkillOutputsPath);
       const desireState = await refreshDesireState({
@@ -610,6 +646,8 @@ const server = createServer(async (req, res) => {
 
       sendJson(res, 200, {
         ...runtimeTurn.result,
+        logEntryId: runtimeTurn.logEntry.id,
+        earningActions,
         desireState,
         localTurnPersonalization
       });
