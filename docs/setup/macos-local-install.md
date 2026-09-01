@@ -139,6 +139,22 @@ npm run dev
 
 不要把 `data/runtime-config.json` 提交到 Git 仓库。
 
+### 可选：启用互联网搜索和网页读取
+
+执行：
+
+```bash
+npm run setup:internet:mac
+```
+
+验证：
+
+```bash
+npm run check:internet
+```
+
+完整说明见：[互联网工具安装指南](internet-tools.md)。
+
 ## 5. 安装本地自训练环境
 
 这一步会启用“本地小模型负责长期个性化”的那条链路。

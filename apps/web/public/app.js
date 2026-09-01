@@ -334,8 +334,23 @@ function normalizeHistoryMessage(message) {
     content: typeof message.content === "string" ? message.content : "",
     timestamp: typeof message.timestamp === "string" ? message.timestamp : new Date().toISOString(),
     status: "sent",
-    errorMessage: ""
+    errorMessage: "",
+    sources: normalizeSources(message.sources)
   };
+}
+
+function normalizeSources(sources) {
+  if (!Array.isArray(sources)) return [];
+  return sources
+    .filter((source) => source && typeof source === "object")
+    .map((source) => ({
+      title: typeof source.title === "string" ? source.title : "来源",
+      url: typeof source.url === "string" ? source.url : "",
+      snippet: typeof source.snippet === "string" ? source.snippet : "",
+      publishedAt: typeof source.publishedAt === "string" ? source.publishedAt : ""
+    }))
+    .filter((source) => /^https?:\/\//i.test(source.url))
+    .slice(0, 8);
 }
 
 function hydrateSettings() {
@@ -379,6 +394,13 @@ function renderSettingsSummary() {
   byId("settingsTrainingModelHint").textContent = modelStatus?.prepared
     ? modelStatus.preparedModelPath || ""
     : [progressHint, modelStatus?.reason || "首次训练前需要先准备本地微调模型。"].filter(Boolean).join(" · ");
+  const internetTools = state.health?.internetTools;
+  byId("settingsInternetToolsStatus").textContent = internetTools?.available
+    ? "互联网工具已连接"
+    : "互联网工具不可用";
+  byId("settingsInternetToolsHint").textContent = internetTools?.available
+    ? `Exa 搜索 · Jina 网页读取${internetTools.exaConfigured ? " · 本地配置已加载" : ""}`
+    : "请运行互联网工具安装脚本后重新检查。";
 }
 
 function renderChatLog(options = {}) {
@@ -401,6 +423,7 @@ function renderChatLog(options = {}) {
           <div class="chat-message ${message.role} ${message.status ? `status-${message.status}` : ""}">
             <div class="chat-role">${message.role === "user" ? "你" : "xiaoxian AI"}</div>
             <div class="chat-content">${escapeHtml(message.content)}</div>
+            ${message.role === "assistant" ? renderMessageSources(message.sources) : ""}
             ${message.role === "assistant" ? renderEarningActions(message) : ""}
             ${
               message.role === "user" && message.status === "failed"
@@ -439,6 +462,26 @@ function renderChatLog(options = {}) {
   }
 }
 
+function renderMessageSources(sources) {
+  const normalized = normalizeSources(sources);
+  if (!normalized.length) return "";
+
+  return `
+    <div class="chat-sources" aria-label="互联网来源">
+      <div class="chat-sources-label">来源</div>
+      ${normalized
+        .map(
+          (source) => `
+            <a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">
+              ${escapeHtml(source.title)}
+            </a>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
 function renderHistoryBanner() {
   if (state.chatHistory.loading && state.chatMessages.length > 0) {
     return '<div class="history-indicator">正在加载更早记录...</div>';
@@ -464,7 +507,8 @@ function pushAssistantMessage(content, render = true, options = {}) {
     sourceLogId: options.sourceLogId,
     role: "assistant",
     content,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    sources: normalizeSources(options.sources)
   });
   if (render) renderChatLog();
 }
@@ -776,6 +820,7 @@ async function submitUserMessage(messageId, { retry = false } = {}) {
     setMood("thinking", "我在想。");
 
     const payload = await postJson("/api/chat", { message });
+    const usedLocalFallback = payload.runtimeExecution?.fallbackUsed === true;
     updateChatMessage(messageId, {
       status: "sent",
       errorMessage: ""
@@ -788,14 +833,21 @@ async function submitUserMessage(messageId, { retry = false } = {}) {
     }
     pushAssistantMessage(payload.reply, true, {
       id: payload.logEntryId ? `${payload.logEntryId}:assistant` : undefined,
-      sourceLogId: payload.logEntryId
+      sourceLogId: payload.logEntryId,
+      sources: payload.sources
     });
 
     const [mood, reason] = classifyReplyMood(payload.reply || "");
     setMood(mood, reason);
 
     await refreshModel();
-    setWorkspaceStatus("已同步最新对话");
+    setWorkspaceStatus(
+      payload.internetToolsUsed
+        ? "已同步 · 本轮已查看互联网来源"
+        : usedLocalFallback
+          ? "已同步 · 云端不可用，本轮由本地模型回复"
+          : "已同步最新对话"
+    );
     setComposerStatus("", "busy");
   } catch (error) {
     updateChatMessage(messageId, {

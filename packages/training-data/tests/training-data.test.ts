@@ -57,6 +57,44 @@ describe("training-data", () => {
     ]);
   });
 
+  it("keeps no-memory turns as time-stamped negative extraction examples", () => {
+    const examples = buildTrainingExamples([
+      {
+        id: "log-no-memory",
+        occurredAt: "2026-08-30T14:47:00.000Z",
+        rawInteraction: {
+          kind: "chat",
+          input: "Confirm that the runtime is available.",
+          reply: "The runtime is available."
+        },
+        runtime: {
+          configuredProvider: "qyuanai",
+          configuredModel: "cloud-model",
+          usedProvider: "ollama",
+          usedModel: "local-model",
+          fallbackUsed: true,
+          fallbackReason: "primary_auth_failed"
+        },
+        candidateMemories: [],
+        decisionLog: []
+      }
+    ]);
+
+    expect(examples).toHaveLength(1);
+    expect(examples[0]).toMatchObject({
+      task: "extract_candidate_memories",
+      metadata: {
+        logId: "log-no-memory",
+        occurredAt: "2026-08-30T14:47:00.000Z"
+      }
+    });
+    expect(JSON.parse(examples[0]?.output ?? "{}")).toEqual({ candidateMemories: [] });
+    expect(JSON.parse(examples[0]?.input ?? "{}").runtime).toMatchObject({
+      usedProvider: "ollama",
+      fallbackUsed: true
+    });
+  });
+
   it("builds profile-seed examples from stable personal biography", () => {
     const examples = buildProfileSeedExamples(
       {

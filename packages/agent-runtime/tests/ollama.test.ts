@@ -12,7 +12,8 @@ describe("OllamaRuntimeClient", () => {
       ok: true,
       json: async () => ({
         message: {
-          content: '{"reply":"Start with one paid test."}{"candidateMemories":[]}'
+          content:
+            '{"reply":"I will search first."}{"candidateMemories":[],"toolRequests":[{"kind":"web_search","query":"current AI news","maxResults":3}]}'
         }
       })
     });
@@ -26,9 +27,10 @@ describe("OllamaRuntimeClient", () => {
     const result = await client.run([{ role: "user", content: "Help me earn." }], "Be useful.");
 
     expect(result).toEqual({
-      reply: "Start with one paid test.",
+      reply: "I will search first.",
       candidateMemories: [],
-      proposedActions: []
+      proposedActions: [],
+      toolRequests: [{ kind: "web_search", query: "current AI news", maxResults: 3 }]
     });
     const request = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
     expect(request).toMatchObject({

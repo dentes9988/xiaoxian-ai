@@ -99,6 +99,22 @@ http://127.0.0.1:4273
 
 配置保存在本机 `data/runtime-config.json`，该目录已被 Git 忽略。不要把这个文件手动上传到公开仓库。
 
+### 可选：启用互联网搜索和网页读取
+
+执行：
+
+```powershell
+npm run setup:internet:windows
+```
+
+验证：
+
+```powershell
+npm run check:internet
+```
+
+完整说明见：[互联网工具安装指南](internet-tools.md)。
+
 ## 7. 可选：使用 Ollama 做本地对话
 
 Ollama 官方提供原生 Windows 应用。安装说明：

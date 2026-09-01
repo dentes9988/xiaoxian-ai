@@ -79,11 +79,19 @@ export interface CurrentProjection {
   activeMemoryIds: string[];
 }
 
+export interface ChatHistorySource {
+  title: string;
+  url: string;
+  snippet?: string;
+  publishedAt?: string;
+}
+
 export interface ChatHistoryMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: string;
+  sources?: ChatHistorySource[];
 }
 
 export interface LifeTrajectory {
@@ -103,6 +111,24 @@ export interface CognitionLogEntry {
     kind: "chat" | "task" | "import";
     input: string;
     reply?: string;
+  };
+  runtime?: {
+    configuredProvider: string;
+    configuredModel: string;
+    usedProvider: string;
+    usedModel: string;
+    fallbackUsed: boolean;
+    fallbackReason?: string;
+  };
+  internet?: {
+    requests: Array<{
+      kind: "web_search" | "read_webpage";
+      query?: string;
+      url?: string;
+      ok: boolean;
+      errorCode?: string;
+    }>;
+    sources: ChatHistorySource[];
   };
   candidateMemories: MemoryItem[];
   decisionLog: Array<{

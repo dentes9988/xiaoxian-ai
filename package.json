@@ -10,6 +10,9 @@
   "scripts": {
     "setup": "npm install",
     "setup:training:mac": "bash ./scripts/setup-local-training-macos.sh",
+    "setup:internet:mac": "bash ./scripts/setup-internet-tools-macos.sh",
+    "setup:internet:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/setup-internet-tools-windows.ps1",
+    "check:internet": "node ./scripts/check-internet-tools.mjs",
     "check:training:mac": "bash ./scripts/check-local-training-macos.sh",
     "setup:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/setup-windows.ps1",
     "check:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-windows.ps1",

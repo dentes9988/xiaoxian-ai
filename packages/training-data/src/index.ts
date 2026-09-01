@@ -378,42 +378,41 @@ export function buildTrainingExamples(logs: CognitionLogEntry[]): TrainingExampl
   const examples: TrainingExample[] = [];
 
   for (const log of logs) {
-    if (log.candidateMemories.length > 0) {
-      examples.push({
-        task: "extract_candidate_memories",
-        instruction:
-          "Read the user's interaction and return candidate memories with type, statement, impact scope, confirmation need, and confidence.",
-        input: JSON.stringify(
-          {
-            interaction: log.rawInteraction,
-            priorDecisions: log.decisionLog.map((decision) => ({
-              memoryId: decision.memoryId,
-              action: decision.action
-            }))
-          },
-          null,
-          2
-        ),
-        output: JSON.stringify(
-          {
-            candidateMemories: log.candidateMemories.map((memory) => ({
-              type: memory.type,
-              subject: memory.subject,
-              statement: memory.statement,
-              confidence: memory.confidence,
-              impactScope: memory.impactScope,
-              confirmationRequired: memory.confirmationRequired
-            }))
-          },
-          null,
-          2
-        ),
-        metadata: {
-          logId: log.id,
-          occurredAt: log.occurredAt
-        }
-      });
-    }
+    examples.push({
+      task: "extract_candidate_memories",
+      instruction:
+        "Read the user's interaction and return candidate memories with type, statement, impact scope, confirmation need, and confidence. Return an empty list when the turn contains no durable personal information.",
+      input: JSON.stringify(
+        {
+          interaction: log.rawInteraction,
+          runtime: log.runtime,
+          priorDecisions: log.decisionLog.map((decision) => ({
+            memoryId: decision.memoryId,
+            action: decision.action
+          }))
+        },
+        null,
+        2
+      ),
+      output: JSON.stringify(
+        {
+          candidateMemories: log.candidateMemories.map((memory) => ({
+            type: memory.type,
+            subject: memory.subject,
+            statement: memory.statement,
+            confidence: memory.confidence,
+            impactScope: memory.impactScope,
+            confirmationRequired: memory.confirmationRequired
+          }))
+        },
+        null,
+        2
+      ),
+      metadata: {
+        logId: log.id,
+        occurredAt: log.occurredAt
+      }
+    });
 
     for (const memory of log.candidateMemories) {
       const decision = log.decisionLog.find((item) => item.memoryId === memory.id);

@@ -1,5 +1,6 @@
 import {
   candidateMemorySchema,
+  parseInternetToolRequests,
   runtimeTurnResultSchema,
   type RuntimeMessage,
   type RuntimeTurnResult
@@ -62,7 +63,8 @@ function normalizeCloudTurnResult(content: string): RuntimeTurnResult {
   return runtimeTurnResultSchema.parse({
     reply: sanitizeReply(reply),
     candidateMemories,
-    proposedActions: deriveProposedActions(payload)
+    proposedActions: deriveProposedActions(payload),
+    toolRequests: deriveToolRequests(payload)
   });
 }
 
@@ -111,6 +113,12 @@ function deriveProposedActions(payload: unknown) {
   if (!payload || typeof payload !== "object") return [];
   const record = payload as Record<string, unknown>;
   return parseEarningActionProposals(record.proposedActions);
+}
+
+function deriveToolRequests(payload: unknown) {
+  if (!payload || typeof payload !== "object") return [];
+  const record = payload as Record<string, unknown>;
+  return parseInternetToolRequests(record.toolRequests);
 }
 
 function decodeJsonString(value: string): string {

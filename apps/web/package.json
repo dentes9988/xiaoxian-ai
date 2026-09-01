@@ -16,10 +16,10 @@
     "@98agent/memory-core": "0.1.0",
     "@98agent/model-registry": "0.1.0",
     "@98agent/prior-engines": "0.1.0",
-    "@98agent/training-data": "0.1.0"
+    "@98agent/training-data": "0.1.0",
+    "mcporter": "^0.7.3"
   },
   "devDependencies": {
     "tsx": "^4.20.3"
   }
 }
-

@@ -11,13 +11,16 @@ import {
   type MemoryItem
 } from "@98agent/memory-core";
 import {
+  AgentReachInternetToolExecutor,
+  FallbackRuntimeProvider,
   FileSystemEarningActionStore,
   FileSystemEarningExperimentStore,
   OllamaRuntimeClient,
   OpenAICompatibleRuntimeClient,
   earningActionEvidenceSchema,
   runEarningComparison,
-  runRuntimeTurn
+  runRuntimeTurn,
+  type RuntimeFallbackReason
 } from "@98agent/agent-runtime";
 import {
   loadPriorSkillOutputs,
@@ -76,6 +79,7 @@ const store = new FileSystemMemoryStore(dataDir, "default-user");
 const modelRegistry = new FileSystemModelRegistry(join(dataRoot, "model-registry.json"));
 const earningActionStore = new FileSystemEarningActionStore(earningActionsPath);
 const earningExperimentStore = new FileSystemEarningExperimentStore(earningExperimentsPath);
+const internetToolExecutor = new AgentReachInternetToolExecutor();
 const personalizationWorker = new ResidentPersonalizationWorker({
   rootDir: repoRoot,
   registry: modelRegistry,
@@ -97,6 +101,20 @@ interface RuntimeConfig {
   model: string;
   baseUrl?: string;
   apiKey?: string;
+}
+
+interface RuntimeExecutionInfo {
+  configuredProvider: RuntimeConfig["provider"];
+  configuredModel: string;
+  usedProvider: RuntimeConfig["provider"];
+  usedModel: string;
+  fallbackUsed: boolean;
+  fallbackReason?: RuntimeFallbackReason | "cloud_not_configured";
+}
+
+interface RuntimeProviderSelection {
+  provider: FallbackRuntimeProvider | OpenAICompatibleRuntimeClient | OllamaRuntimeClient;
+  execution: RuntimeExecutionInfo;
 }
 
 interface CloudModelConfig {
@@ -122,7 +140,7 @@ interface TrainingExecutionResult {
 
 function buildRuntimeUnavailableMessage(config: RuntimeConfig): string {
   if (config.provider === "qyuanai") {
-    return "The configured cloud model could not be reached. Check the API key, base URL, model name, and network access.";
+    return "The configured cloud model and local Ollama fallback are unavailable. Check the cloud credentials, Ollama access, and local fallback model.";
   }
 
   return "The local runtime could not reach the configured model. Check Ollama access and runtime permissions.";
@@ -300,9 +318,15 @@ const server = createServer(async (req, res) => {
       ok: true,
       runtimeProvider: runtimeConfig.provider,
       runtimeModel: runtimeConfig.model,
+      localRuntimeFallback: {
+        enabled: true,
+        provider: "ollama",
+        model: runtimeModel
+      },
       personalModelBase,
       trainingConfig: await loadTrainingControlConfig(trainingConfigPath),
       personalizationWorker: personalizationWorker.getStatus(),
+      internetTools: await internetToolExecutor.healthCheck(),
       nightlyTraining: await nightlyTrainingScheduler.getStatus()
     });
     return;
@@ -310,6 +334,11 @@ const server = createServer(async (req, res) => {
 
   if (req.method === "GET" && url.pathname === "/api/local-personalization/health") {
     sendJson(res, 200, await personalizationWorker.healthCheck());
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/internet-tools/health") {
+    sendJson(res, 200, await internetToolExecutor.healthCheck());
     return;
   }
 
@@ -325,7 +354,12 @@ const server = createServer(async (req, res) => {
       provider: runtimeConfig.provider,
       model: runtimeConfig.model,
       baseUrl: runtimeConfig.baseUrl,
-      apiKeyConfigured: Boolean(runtimeConfig.apiKey)
+      apiKeyConfigured: Boolean(runtimeConfig.apiKey),
+      localRuntimeFallback: {
+        enabled: true,
+        provider: "ollama",
+        model: runtimeModel
+      }
     });
     return;
   }
@@ -465,7 +499,12 @@ const server = createServer(async (req, res) => {
         provider: next.provider,
         model: next.model,
         baseUrl: next.baseUrl,
-        apiKeyConfigured: Boolean(next.apiKey)
+        apiKeyConfigured: Boolean(next.apiKey),
+        localRuntimeFallback: {
+          enabled: true,
+          provider: "ollama",
+          model: runtimeModel
+        }
       }
     });
     return;
@@ -689,13 +728,15 @@ const server = createServer(async (req, res) => {
           });
       const runtime = createRuntimeProvider(runtimeConfig);
       const runtimeTurn = await runRuntimeTurn({
-        provider: runtime,
+        provider: runtime.provider,
         messages: [{ role: "user", content: body.message }],
         projection: snapshot.currentProjection ?? buildCurrentProjection("default-user", []),
         selfModelDigest: renderSelfModelDigestForPrompt(selfModelDigest),
         existingMemories: snapshot.memories,
-        turnContextHints: localTurnPersonalization.turnContextHints
+        turnContextHints: localTurnPersonalization.turnContextHints,
+        internetToolExecutor
       });
+      runtimeTurn.logEntry.runtime = { ...runtime.execution };
 
       await store.appendLog(runtimeTurn.logEntry);
       for (const memory of runtimeTurn.memories) {
@@ -712,7 +753,8 @@ const server = createServer(async (req, res) => {
           id: `${runtimeTurn.logEntry.id}:assistant`,
           role: "assistant",
           content: runtimeTurn.result.reply,
-          timestamp: new Date(new Date(runtimeTurn.logEntry.occurredAt).getTime() + 1).toISOString()
+          timestamp: new Date(new Date(runtimeTurn.logEntry.occurredAt).getTime() + 1).toISOString(),
+          sources: runtimeTurn.sources
         }
       ];
       await store.appendChatHistory(historyMessages);
@@ -734,7 +776,10 @@ const server = createServer(async (req, res) => {
         logEntryId: runtimeTurn.logEntry.id,
         earningActions,
         desireState,
-        localTurnPersonalization
+        localTurnPersonalization,
+        runtimeExecution: runtime.execution,
+        sources: runtimeTurn.sources,
+        internetToolsUsed: runtimeTurn.toolResults.length > 0
       });
     } catch (error) {
       sendJson(res, 502, {
@@ -789,8 +834,9 @@ const server = createServer(async (req, res) => {
             ),
             selfModelDigestText: renderSelfModelDigestForPrompt(selfModelDigest)
           });
+      const runtime = createRuntimeProvider(runtimeConfig);
       const comparison = await runEarningComparison({
-        provider: createRuntimeProvider(runtimeConfig),
+        provider: runtime.provider,
         scenario: {
           id: crypto.randomUUID(),
           userMessage: message,
@@ -801,7 +847,12 @@ const server = createServer(async (req, res) => {
         }
       });
 
-      sendJson(res, 200, { ok: true, localTurnPersonalization, comparison });
+      sendJson(res, 200, {
+        ok: true,
+        localTurnPersonalization,
+        runtimeExecution: runtime.execution,
+        comparison
+      });
     } catch (error) {
       sendJson(res, 502, {
         error: "earning_evaluation_failed",
@@ -929,20 +980,60 @@ function toCloudModelConfig(runtimeConfig: RuntimeConfig): CloudModelConfig | un
 
 function createRuntimeProvider(
   runtimeConfig: RuntimeConfig
-): OpenAICompatibleRuntimeClient | OllamaRuntimeClient {
-  return runtimeConfig.provider === "qyuanai" && runtimeConfig.apiKey && runtimeConfig.baseUrl
-    ? new OpenAICompatibleRuntimeClient({
-        apiKey: runtimeConfig.apiKey,
-        baseUrl: runtimeConfig.baseUrl,
-        model: runtimeConfig.model,
-        timeoutMs: 20_000
-      })
-    : new OllamaRuntimeClient({
-        model: runtimeConfig.model,
-        timeoutMs: 120_000,
-        maxOutputTokens: 768,
-        keepAlive: "10m"
-      });
+): RuntimeProviderSelection {
+  if (runtimeConfig.provider === "ollama") {
+    return {
+      provider: createLocalRuntimeProvider(runtimeConfig.model),
+      execution: {
+        configuredProvider: "ollama",
+        configuredModel: runtimeConfig.model,
+        usedProvider: "ollama",
+        usedModel: runtimeConfig.model,
+        fallbackUsed: false
+      }
+    };
+  }
+
+  const execution: RuntimeExecutionInfo = {
+    configuredProvider: "qyuanai",
+    configuredModel: runtimeConfig.model,
+    usedProvider: "qyuanai",
+    usedModel: runtimeConfig.model,
+    fallbackUsed: false
+  };
+  const fallback = createLocalRuntimeProvider(runtimeModel);
+  if (!runtimeConfig.apiKey || !runtimeConfig.baseUrl) {
+    execution.usedProvider = "ollama";
+    execution.usedModel = runtimeModel;
+    execution.fallbackUsed = true;
+    execution.fallbackReason = "cloud_not_configured";
+    return { provider: fallback, execution };
+  }
+
+  const primary = new OpenAICompatibleRuntimeClient({
+    apiKey: runtimeConfig.apiKey,
+    baseUrl: runtimeConfig.baseUrl,
+    model: runtimeConfig.model,
+    timeoutMs: 20_000
+  });
+  return {
+    provider: new FallbackRuntimeProvider(primary, fallback, (reason) => {
+      execution.usedProvider = "ollama";
+      execution.usedModel = runtimeModel;
+      execution.fallbackUsed = true;
+      execution.fallbackReason = reason;
+    }),
+    execution
+  };
+}
+
+function createLocalRuntimeProvider(model: string): OllamaRuntimeClient {
+  return new OllamaRuntimeClient({
+    model,
+    timeoutMs: 120_000,
+    maxOutputTokens: 768,
+    keepAlive: "10m"
+  });
 }
 
 function renderSelfModelDigestForPrompt(digest: {

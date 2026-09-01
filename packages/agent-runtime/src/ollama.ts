@@ -1,4 +1,9 @@
-import { runtimeTurnResultSchema, type RuntimeMessage, type RuntimeTurnResult } from "./schemas.js";
+import {
+  parseInternetToolRequests,
+  runtimeTurnResultSchema,
+  type RuntimeMessage,
+  type RuntimeTurnResult
+} from "./schemas.js";
 import { extractJsonPayload } from "./json.js";
 import { parseEarningActionProposals } from "./earning-actions.js";
 
@@ -69,7 +74,8 @@ function normalizeRuntimeTurnResult(content: string): RuntimeTurnResult {
   return runtimeTurnResultSchema.parse({
     reply: sanitizeReply(reply),
     candidateMemories,
-    proposedActions: parseEarningActionProposals(record.proposedActions)
+    proposedActions: parseEarningActionProposals(record.proposedActions),
+    toolRequests: parseInternetToolRequests(record.toolRequests)
   });
 }
 
