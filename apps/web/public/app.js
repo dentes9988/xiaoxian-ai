@@ -105,6 +105,10 @@ const state = {
   trainingModelStatus: null,
   earningActions: [],
   earningExperiments: [],
+  earningResearch: {
+    records: [],
+    scheduler: null
+  },
   submitting: false,
   nextMessageId: 1,
   chatMessages: [],
@@ -216,14 +220,16 @@ async function refreshModel() {
     runtimeConfigResponse,
     trainingModelStatusResponse,
     earningActionsResponse,
-    earningExperimentsResponse
+    earningExperimentsResponse,
+    earningResearchResponse
   ] = await Promise.all([
     fetch("/api/self-model"),
     fetch("/api/health"),
     fetch("/api/runtime/config"),
     fetch("/api/train/model-status"),
     fetch("/api/earning/actions"),
-    fetch("/api/earning/experiments")
+    fetch("/api/earning/experiments"),
+    fetch("/api/earning/research")
   ]);
 
   state.selfModel = await selfModelResponse.json();
@@ -238,6 +244,11 @@ async function refreshModel() {
   state.earningExperiments = Array.isArray(earningExperimentPayload.experiments)
     ? earningExperimentPayload.experiments
     : [];
+  const earningResearchPayload = await earningResearchResponse.json();
+  state.earningResearch = {
+    records: Array.isArray(earningResearchPayload.records) ? earningResearchPayload.records : [],
+    scheduler: earningResearchPayload.scheduler || null
+  };
 
   byId("modelState").textContent = JSON.stringify(
     {
@@ -401,6 +412,17 @@ function renderSettingsSummary() {
   byId("settingsInternetToolsHint").textContent = internetTools?.available
     ? `Exa 搜索 · Jina 网页读取${internetTools.exaConfigured ? " · 本地配置已加载" : ""}`
     : "请运行互联网工具安装脚本后重新检查。";
+  const researchRecords = state.earningResearch?.records || [];
+  const latestResearch = researchRecords.at(-1);
+  const researchScheduler = state.earningResearch?.scheduler;
+  byId("settingsEarningResearchStatus").textContent = latestResearch
+    ? `市场研究已更新 · ${latestResearch.sources?.length || 0} 个来源`
+    : researchScheduler?.enabled
+      ? "市场研究等待首次运行"
+      : "市场研究已停用";
+  byId("settingsEarningResearchHint").textContent = latestResearch
+    ? `最近更新 ${new Date(latestResearch.generatedAt).toLocaleString()} · 仅生成内部草稿`
+    : "每天自动读取公开市场信息；发布、联系和收款仍需授权。";
 }
 
 function renderChatLog(options = {}) {
@@ -575,6 +597,7 @@ function renderEarningActions(message) {
                     )} · 已核验 ¥${escapeHtml(experiment.verifiedRevenueCny ?? 0)}</p>`
                   : ""
               }
+              ${experiment ? renderEarningResearch(experiment) : ""}
               ${
                 action.status === "pending_approval"
                   ? `
@@ -600,6 +623,46 @@ function renderEarningActions(message) {
           `;
         })
         .join("")}
+    </div>
+  `;
+}
+
+function renderEarningResearch(experiment) {
+  const records = (state.earningResearch?.records || [])
+    .filter((record) => record.experimentId === experiment.id)
+    .sort((left, right) => String(left.generatedAt).localeCompare(String(right.generatedAt)));
+  const record = records.at(-1);
+  if (!record) return "";
+
+  const draft = record.publicDraft || {};
+  const recommendation = record.recommendation || {};
+  const sources = normalizeSources(record.sources);
+  return `
+    <div class="earning-research">
+      <div class="earning-research-head">
+        <strong>公开市场研究</strong>
+        <span>${escapeHtml(record.sources?.length || 0)} 个来源 · 内部草稿</span>
+      </div>
+      <p>${escapeHtml(draft.headline || "")}</p>
+      <p>${escapeHtml(draft.summary || "")}</p>
+      <p class="earning-action-revenue">
+        建议试单价：¥${escapeHtml(recommendation.recommendedUnitPriceCny || "待验证")}
+      </p>
+      ${(recommendation.rationale || []).map((item) => `<p class="earning-research-note">${escapeHtml(item)}</p>`).join("")}
+      ${
+        sources.length
+          ? `<details>
+              <summary>查看公开来源</summary>
+              <div class="earning-research-sources">
+                ${sources
+                  .map(
+                    (source) => `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.title)}</a>`
+                  )
+                  .join("")}
+              </div>
+            </details>`
+          : ""
+      }
     </div>
   `;
 }
@@ -784,6 +847,25 @@ async function runTraining(respectWindow) {
     );
   } catch (error) {
     handleError(error, "训练失败");
+  }
+}
+
+async function runEarningResearchNow() {
+  try {
+    const button = byId("runEarningResearch");
+    button.disabled = true;
+    setWorkspaceStatus("正在读取公开市场信息...");
+    const payload = await postJson("/api/earning/research/run", {});
+    await refreshModel();
+    const sourceCount = (payload.records || []).reduce(
+      (total, record) => total + (record.sources?.length || 0),
+      0
+    );
+    setWorkspaceStatus(`市场研究已更新 · ${sourceCount} 个公开来源`);
+  } catch (error) {
+    handleError(error, "市场研究失败");
+  } finally {
+    byId("runEarningResearch").disabled = false;
   }
 }
 
@@ -1125,6 +1207,7 @@ byId("saveTrainingConfig").addEventListener("click", saveTrainingConfig);
 byId("prepareTrainingModel").addEventListener("click", prepareTrainingModelNow);
 byId("runTraining").addEventListener("click", () => runTraining(false));
 byId("runScheduledTraining").addEventListener("click", () => runTraining(true));
+byId("runEarningResearch").addEventListener("click", runEarningResearchNow);
 byId("generatePriors").addEventListener("click", () => generatePriors(false));
 byId("chatLog").addEventListener("click", handleChatAction);
 byId("chatLog").addEventListener("scroll", handleChatScroll);

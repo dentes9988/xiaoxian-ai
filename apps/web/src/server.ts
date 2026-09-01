@@ -12,14 +12,18 @@ import {
 } from "@98agent/memory-core";
 import {
   AgentReachInternetToolExecutor,
+  DailyEarningResearchScheduler,
   FallbackRuntimeProvider,
   FileSystemEarningActionStore,
   FileSystemEarningExperimentStore,
+  FileSystemEarningResearchStore,
   OllamaRuntimeClient,
   OpenAICompatibleRuntimeClient,
   earningActionEvidenceSchema,
   runEarningComparison,
+  runEarningResearch,
   runRuntimeTurn,
+  type EarningResearchRecord,
   type RuntimeFallbackReason
 } from "@98agent/agent-runtime";
 import {
@@ -69,16 +73,23 @@ const trainingSchedulerStatePath = join(dataRoot, "training-scheduler-state.json
 const desireStatePath = join(dataRoot, "desire-state.json");
 const earningActionsPath = join(dataRoot, "earning-actions.json");
 const earningExperimentsPath = join(dataRoot, "earning-experiments.json");
+const earningResearchPath = join(dataRoot, "earning-research.json");
+const earningResearchSchedulerStatePath = join(
+  dataRoot,
+  "earning-research-scheduler-state.json"
+);
 const publicDir = fileURLToPath(new URL("../public", import.meta.url));
 const mingyuRoot = join(repoRoot, ".cache", "skills", "mingyu");
 const runtimeModel = process.env.OLLAMA_RUNTIME_MODEL ?? "gemma3:1b-it-qat";
 const personalModelBase = process.env.PERSONAL_MODEL_BASE ?? "NitrAI/VibeThinker-3B:latest";
 const trainingEnabled = process.env.PERSONAL_MODEL_TRAINING_ENABLED !== "false";
+const earningResearchEnabled = process.env.EARNING_RESEARCH_ENABLED !== "false";
 const trainingPythonBin = resolveDefaultTrainingPythonBin(repoRoot);
 const store = new FileSystemMemoryStore(dataDir, "default-user");
 const modelRegistry = new FileSystemModelRegistry(join(dataRoot, "model-registry.json"));
 const earningActionStore = new FileSystemEarningActionStore(earningActionsPath);
 const earningExperimentStore = new FileSystemEarningExperimentStore(earningExperimentsPath);
+const earningResearchStore = new FileSystemEarningResearchStore(earningResearchPath);
 const internetToolExecutor = new AgentReachInternetToolExecutor();
 const personalizationWorker = new ResidentPersonalizationWorker({
   rootDir: repoRoot,
@@ -86,6 +97,7 @@ const personalizationWorker = new ResidentPersonalizationWorker({
   idleTimeoutMs: 10 * 60 * 1000
 });
 let trainingRunPromise: Promise<TrainingExecutionResult> | null = null;
+let earningResearchRunPromise: Promise<EarningResearchRecord[]> | null = null;
 const nightlyTrainingScheduler = new NightlyTrainingScheduler({
   statePath: trainingSchedulerStatePath,
   loadConfig: async () => {
@@ -93,6 +105,11 @@ const nightlyTrainingScheduler = new NightlyTrainingScheduler({
     return { ...config, enabled: trainingEnabled && config.enabled };
   },
   run: async (now) => (await executeTraining({ respectWindow: true, now })).trainingRun
+});
+const earningResearchScheduler = new DailyEarningResearchScheduler({
+  statePath: earningResearchSchedulerStatePath,
+  enabled: earningResearchEnabled,
+  run: requestEarningResearchRun
 });
 let mingyuInstallPromise: Promise<void> | null = null;
 
@@ -136,6 +153,66 @@ interface TrainingExecutionResult {
   plan: ReturnType<typeof planFastFineTune>;
   trainingRun: Awaited<ReturnType<typeof runFastFineTune>>;
   modelRegistry: Awaited<ReturnType<FileSystemModelRegistry["load"]>>;
+}
+
+function requestEarningResearchRun(now: Date): Promise<EarningResearchRecord[]> {
+  if (earningResearchRunPromise) return earningResearchRunPromise;
+  earningResearchRunPromise = executeEarningResearch(now).finally(() => {
+    earningResearchRunPromise = null;
+  });
+  return earningResearchRunPromise;
+}
+
+async function executeEarningResearch(now: Date): Promise<EarningResearchRecord[]> {
+  const [experiments, actions] = await Promise.all([
+    earningExperimentStore.list(),
+    earningActionStore.list()
+  ]);
+  const candidates = experiments.filter(
+    (experiment) => experiment.status === "draft" || experiment.status === "running"
+  );
+  const records: EarningResearchRecord[] = [];
+
+  for (const experiment of candidates) {
+    const attachedPublishAction = actions.find(
+      (action) =>
+        experiment.actionIds.includes(action.id) &&
+        action.kind === "publish_offer" &&
+        action.status !== "rejected" &&
+        action.status !== "failed"
+    );
+    if (!attachedPublishAction) continue;
+    const proposedUnitPriceCny = extractProposedUnitPriceCny(
+      attachedPublishAction.description
+    );
+    const capacity = proposedUnitPriceCny
+      ? Math.max(1, Math.round(experiment.projectedRevenueCny / proposedUnitPriceCny))
+      : 5;
+    const record = await runEarningResearch({
+      experimentId: experiment.id,
+      offerName: "xiaoxian AI 本地安装",
+      publicOfferTopic:
+        "xiaoxian AI local-first personal assistant installation service macOS Windows",
+      executor: internetToolExecutor,
+      proposedUnitPriceCny,
+      capacity,
+      supportDays: 7,
+      windowDays: experiment.windowDays,
+      targetQualifiedInquiries: experiment.targetQualifiedInquiries,
+      targetPaidCustomers: experiment.targetPaidCustomers,
+      now
+    });
+    records.push(await earningResearchStore.append(record));
+  }
+
+  return records;
+}
+
+function extractProposedUnitPriceCny(text: string): number | undefined {
+  const match = text.match(/(?:¥|￥|人民币\s*)?(\d[\d,]*(?:\.\d+)?)\s*(?:元|CNY|RMB)/i);
+  if (!match?.[1]) return undefined;
+  const amount = Number(match[1].replaceAll(",", ""));
+  return Number.isFinite(amount) && amount > 0 ? amount : undefined;
 }
 
 function buildRuntimeUnavailableMessage(config: RuntimeConfig): string {
@@ -327,7 +404,8 @@ const server = createServer(async (req, res) => {
       trainingConfig: await loadTrainingControlConfig(trainingConfigPath),
       personalizationWorker: personalizationWorker.getStatus(),
       internetTools: await internetToolExecutor.healthCheck(),
-      nightlyTraining: await nightlyTrainingScheduler.getStatus()
+      nightlyTraining: await nightlyTrainingScheduler.getStatus(),
+      earningResearch: await earningResearchScheduler.getStatus()
     });
     return;
   }
@@ -379,6 +457,35 @@ const server = createServer(async (req, res) => {
 
   if (req.method === "GET" && url.pathname === "/api/earning/experiments") {
     sendJson(res, 200, { experiments: await earningExperimentStore.list() });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/earning/research") {
+    sendJson(res, 200, {
+      records: await earningResearchStore.list(),
+      scheduler: await earningResearchScheduler.getStatus()
+    });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/earning/research/run") {
+    if (!earningResearchEnabled) {
+      sendJson(res, 409, { error: "earning_research_disabled" });
+      return;
+    }
+    try {
+      const records = await requestEarningResearchRun(new Date());
+      sendJson(res, 200, {
+        ok: true,
+        records,
+        scheduler: await earningResearchScheduler.getStatus()
+      });
+    } catch (error) {
+      sendJson(res, 502, {
+        error: "earning_research_failed",
+        detail: error instanceof Error ? error.message : String(error)
+      });
+    }
     return;
   }
 
@@ -2095,6 +2202,7 @@ function readJson(req: import("node:http").IncomingMessage): Promise<unknown> {
 const port = Number(process.env.PORT ?? 4173);
 server.listen(port, "127.0.0.1", () => {
   nightlyTrainingScheduler.start();
+  earningResearchScheduler.start();
   console.log(`xiaoxian AI local web app listening on http://127.0.0.1:${port}`);
 });
 
@@ -2103,6 +2211,8 @@ async function shutdownLocalServices(): Promise<void> {
   if (shutdownStarted) return;
   shutdownStarted = true;
   nightlyTrainingScheduler.stop();
+  earningResearchScheduler.stop();
+  await earningResearchRunPromise?.catch(() => []);
   await personalizationWorker.shutdown();
   server.close();
 }

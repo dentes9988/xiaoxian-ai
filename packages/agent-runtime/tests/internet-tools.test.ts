@@ -48,7 +48,7 @@ describe("internet tools", () => {
 
     const result = await executor.execute({
       kind: "web_search",
-      query: "api_key: sk-example-secret-value"
+      query: "api_key: example-secret-value"
     });
 
     expect(result.ok).toBe(false);

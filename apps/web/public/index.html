@@ -787,6 +787,38 @@
         font-weight: 700;
       }
 
+      .earning-research {
+        margin-top: 12px;
+        padding-left: 12px;
+        border-left: 2px solid rgba(45, 109, 246, 0.24);
+      }
+
+      .earning-research-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        color: var(--blue-strong);
+        font-size: 0.82rem;
+      }
+
+      .earning-research-head span,
+      .earning-research-note {
+        color: var(--muted);
+        font-size: 0.78rem;
+      }
+
+      .earning-research-sources {
+        display: grid;
+        gap: 6px;
+        margin-top: 8px;
+      }
+
+      .earning-research-sources a {
+        color: var(--blue-strong);
+        font-size: 0.8rem;
+      }
+
       .earning-action-buttons {
         justify-content: flex-start;
         margin-top: 10px;
@@ -1165,6 +1197,11 @@
             <div class="field-grid single">
               <div class="pill" id="settingsInternetToolsStatus">等待同步</div>
               <p class="muted" id="settingsInternetToolsHint" style="margin:0;"></p>
+              <div class="pill" id="settingsEarningResearchStatus">等待同步</div>
+              <p class="muted" id="settingsEarningResearchHint" style="margin:0;"></p>
+            </div>
+            <div class="button-row">
+              <button id="runEarningResearch" class="secondary" type="button">立即刷新市场研究</button>
             </div>
           </section>
 

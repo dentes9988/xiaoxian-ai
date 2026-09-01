@@ -26,4 +26,17 @@ describe("web static entry", () => {
     expect(app).toContain("renderMessageSources(message.sources)");
     expect(app).toContain("本轮已查看互联网来源");
   });
+
+  it("keeps public market research internal until the user authorizes publishing", async () => {
+    const [html, app] = await Promise.all([
+      readFile(indexPath, "utf8"),
+      readFile(appPath, "utf8")
+    ]);
+
+    expect(html).toContain('id="runEarningResearch"');
+    expect(html).toContain('id="settingsEarningResearchStatus"');
+    expect(app).toContain('postJson("/api/earning/research/run", {})');
+    expect(app).toContain("公开市场研究");
+    expect(app).toContain("内部草稿");
+  });
 });

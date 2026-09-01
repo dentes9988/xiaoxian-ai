@@ -8,3 +8,4 @@ export * from "./earning-actions.js";
 export * from "./earning-experiments.js";
 export * from "./fallback.js";
 export * from "./internet-tools.js";
+export * from "./earning-research.js";
